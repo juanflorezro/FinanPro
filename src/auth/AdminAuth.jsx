@@ -16,8 +16,8 @@ export function AdminAuthProvider({ children }) {
   const startLogin = useCallback((email, password) =>
     api('/admin/auth/login', { method: 'POST', body: { email, password } }), []);
 
-  const verifyLogin = useCallback(async (mfaToken, code) => {
-    const data = await api('/admin/auth/login/verify', { method: 'POST', body: { mfaToken, code } });
+  const verifyLogin = useCallback(async (mfaToken, code, method = 'totp') => {
+    const data = await api('/admin/auth/login/verify', { method: 'POST', body: { mfaToken, code, method } });
     setAccessToken(data.accessToken);
     setAdmin(data.admin);
     return data.admin;

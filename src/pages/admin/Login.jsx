@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { api } from '../../api/client.js';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '../../auth/AdminAuth.jsx';
 import { Button, Input } from '../../components/ui.jsx';
@@ -60,6 +61,8 @@ export default function AdminLogin() {
   const [step, setStep] = useState('password');
   const [form, setForm] = useState({ email: '', password: '' });
   const [mfaToken, setMfaToken] = useState('');
+  const [method, setMethod] = useState('totp');
+  const [emailHint, setEmailHint] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -73,6 +76,7 @@ export default function AdminLogin() {
     try {
       const res = await startLogin(form.email.trim(), form.password.trim()); // quita espacios pegados por error
       setMfaToken(res.mfaToken);
+      setMethod('totp');
       setStep('code');
     } catch (err) {
       setError(err.message);
@@ -87,7 +91,7 @@ export default function AdminLogin() {
     setBusy(true);
     setError('');
     try {
-      await verifyLogin(mfaToken, value);
+      await verifyLogin(mfaToken, value, method);
       navigate(location.state?.from ?? '/admin', { replace: true });
     } catch (err) {
       setError(err.code === 'MFA_TOKEN_INVALID' ? 'Pasó mucho tiempo. Ingresa tu contraseña de nuevo.' : err.message);
@@ -126,10 +130,25 @@ export default function AdminLogin() {
         ) : (
           <form className="login-form" onSubmit={submitCode}>
             <h1>Confirma que eres tú</h1>
-            <p className="muted">Escribe el código de 6 dígitos de tu app de autenticación.</p>
+            <p className="muted">{method === 'totp'
+              ? 'Escribe el código de 6 dígitos de tu app de autenticación.'
+              : `Te enviamos un código de 6 dígitos a ${emailHint}. Vence en 15 minutos.`}</p>
             <CodeInput value={code} onChange={(v) => { setCode(v); if (v.length === 6) submitCode(null, v); }} disabled={busy} />
             {error && <p className="form-error" role="alert">{error}</p>}
             <Button type="submit" loading={busy} disabled={code.length !== 6} className="btn-block">Entrar al panel</Button>
+            <div className="login-links">
+              <button type="button" className="link-btn" disabled={busy} onClick={async () => {
+                setBusy(true); setError('');
+                try {
+                  const r = await api('/admin/auth/login/email-code', { method: 'POST', body: { mfaToken } });
+                  setEmailHint(r.sentTo); setMethod('email'); setCode(''); setTimeout(() => document.querySelector('.code-input input')?.focus(), 50);
+                } catch (err) {
+                  setError(err.code === 'MFA_TOKEN_INVALID' ? 'Pasó mucho tiempo. Ingresa tu contraseña de nuevo.' : err.message);
+                  if (err.code === 'MFA_TOKEN_INVALID') setStep('password');
+                } finally { setBusy(false); }
+              }}>{method === 'totp' ? 'No tengo la app: enviar código a mi correo' : 'Enviar otro código'}</button>
+              {method === 'email' && <button type="button" className="link-btn" onClick={() => { setMethod('totp'); setCode(''); setError(''); }}>Usar la app</button>}
+            </div>
             <button type="button" className="link-btn" onClick={() => { setStep('password'); setCode(''); setError(''); }}>Usar otra cuenta</button>
           </form>
         )}
