@@ -6,6 +6,16 @@ import { useAction } from '../../components/useAction.js';
 import { PageHeader, Panel, Button, Loading, ErrorNote, Empty, Modal, Input, Select, Textarea, Badge } from '../../components/ui.jsx';
 import { money, toCents, fromCents, number } from '../../utils/format.js';
 import { CYCLES } from '../../utils/labels.js';
+import { rules, validate, focusFirstError } from '../../utils/validation.js';
+
+const RULES = {
+  name: [rules.required('Escribe el nombre del plan')],
+  code: [rules.required('Escribe un código corto, ej. BASICO'), rules.minLen(2)],
+  price: [rules.required('Escribe el precio'), (v) => (Number(String(v).replace(/[^\d.]/g, '')) >= 0 && /^[\d.,\s$]+$/.test(String(v)) ? null : 'Escribe solo números')],
+  maxUsers: [rules.integer({ min: 0 })],
+  maxBorrowers: [rules.integer({ min: 0 })],
+  maxActiveLoans: [rules.integer({ min: 0 })],
+};
 
 const EMPTY = { code: '', name: '', description: '', price: '', currency: 'COP', billingCycle: 'mensual', maxUsers: '0', maxBorrowers: '0', maxActiveLoans: '0', features: '', isActive: true };
 const limit = (n, noun) => (Number(n) ? `${number(n)} ${noun}` : `${noun[0].toUpperCase()}${noun.slice(1)} ilimitados`);
@@ -16,6 +26,7 @@ export default function Plans() {
   const { run, busy } = useAction();
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY);
+  const [errors, setErrors] = useState({});
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
 
   function open(plan) {
@@ -27,10 +38,14 @@ export default function Plans() {
       maxActiveLoans: String(plan.limits?.maxActiveLoans ?? 0),
       features: (plan.features ?? []).join('\n'),
     } : EMPTY);
+    setErrors({});
     setEditing(plan?._id ?? 'new');
   }
 
   async function save() {
+    const found = validate(form, RULES);
+    setErrors(found);
+    if (Object.keys(found).length) { focusFirstError(); return; }
     const body = {
       code: form.code, name: form.name, description: form.description || undefined,
       price: toCents(form.price), currency: form.currency, billingCycle: form.billingCycle,
@@ -48,7 +63,7 @@ export default function Plans() {
       <PageHeader title="Planes" subtitle="Lo que cobras a cada empresa y hasta dónde puede crecer con ese precio."
         actions={can('finanzas') && <Button onClick={() => open(null)}>Crear plan</Button>} />
 
-      {loading ? <Loading /> : error ? <ErrorNote error={error} onRetry={reload} /> : data.length === 0 ? (
+      {loading ? <Loading /> : error ? <ErrorNote error={error} onRetry={reload} /> : !data?.length ? (
         <Panel><Empty title="Aún no tienes planes" action={can('finanzas') && <Button variant="secondary" onClick={() => open(null)}>Crear el primero</Button>}>Necesitas al menos uno para habilitar clientes.</Empty></Panel>
       ) : (
         <div className="plans">
@@ -76,15 +91,15 @@ export default function Plans() {
       )}
 
       <Modal open={Boolean(editing)} title={editing === 'new' ? 'Crear plan' : 'Editar plan'} onClose={() => setEditing(null)} width={620}
-        footer={<><Button variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button><Button loading={busy} disabled={!form.code || !form.name || form.price === ''} onClick={save}>{editing === 'new' ? 'Crear plan' : 'Guardar cambios'}</Button></>}>
+        footer={<><Button variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button><Button loading={busy} onClick={save}>{editing === 'new' ? 'Crear plan' : 'Guardar cambios'}</Button></>}>
         <div className="form-grid">
-          <Input label="Nombre" value={form.name} onChange={set('name')} placeholder="Básico" />
-          <Input label="Código" value={form.code} onChange={set('code')} placeholder="BASICO" hint="Corto y sin espacios" />
-          <Input label="Precio" inputMode="numeric" value={form.price} onChange={set('price')} placeholder="150000" />
+          <Input label="Nombre" required value={form.name} onChange={set('name')} placeholder="Básico" error={errors.name} />
+          <Input label="Código" required value={form.code} onChange={set('code')} placeholder="BASICO" hint="Corto y sin espacios" error={errors.code} />
+          <Input label="Precio" required inputMode="numeric" value={form.price} onChange={set('price')} placeholder="150000" error={errors.price} />
           <Select label="Se cobra" value={form.billingCycle} onChange={set('billingCycle')} options={CYCLES} />
-          <Input label="Usuarios" type="number" min="0" value={form.maxUsers} onChange={set('maxUsers')} hint="0 = sin límite" />
-          <Input label="Deudores" type="number" min="0" value={form.maxBorrowers} onChange={set('maxBorrowers')} hint="0 = sin límite" />
-          <Input label="Préstamos activos" type="number" min="0" value={form.maxActiveLoans} onChange={set('maxActiveLoans')} hint="0 = sin límite" />
+          <Input label="Usuarios" type="number" min="0" value={form.maxUsers} onChange={set('maxUsers')} hint="0 = sin límite" error={errors.maxUsers} />
+          <Input label="Deudores" type="number" min="0" value={form.maxBorrowers} onChange={set('maxBorrowers')} hint="0 = sin límite" error={errors.maxBorrowers} />
+          <Input label="Préstamos activos" type="number" min="0" value={form.maxActiveLoans} onChange={set('maxActiveLoans')} hint="0 = sin límite" error={errors.maxActiveLoans} />
           <Select label="Moneda" value={form.currency} onChange={set('currency')} options={{ COP: 'Peso colombiano', USD: 'Dólar', MXN: 'Peso mexicano', PEN: 'Sol', EUR: 'Euro' }} />
           <Textarea label="Descripción" value={form.description} onChange={set('description')} className="span-2" />
           <Textarea label="Qué incluye" value={form.features} onChange={set('features')} hint="Una línea por beneficio" className="span-2" />

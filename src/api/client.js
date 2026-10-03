@@ -47,6 +47,7 @@ export async function api(path, { method = 'GET', body, query, retry = true } = 
   const res = await fetch(url, {
     method,
     credentials: 'include',
+    cache: 'no-store',
     headers: {
       ...(body !== undefined && { 'Content-Type': 'application/json' }),
       ...(accessToken && { Authorization: `Bearer ${accessToken}` }),

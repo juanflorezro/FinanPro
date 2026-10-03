@@ -1,8 +1,10 @@
 import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { api } from '../api/client.js';
 import { useAdminAuth } from '../auth/AdminAuth.jsx';
 import { ADMIN_ROLES } from '../utils/labels.js';
 import { Loading } from '../components/ui.jsx';
+import { ErrorBoundary } from '../components/ErrorBoundary.jsx';
 
 const icon = (d) => (
   <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d={d} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -12,6 +14,7 @@ const NAV = [
   { to: '/admin', end: true, label: 'Resumen', icon: icon('M3 10.5L10 4l7 6.5M5 9v7h4v-4h2v4h4V9') },
   { to: '/admin/clientes', label: 'Clientes', icon: icon('M4 16.5v-1A3.5 3.5 0 017.5 12h5a3.5 3.5 0 013.5 3.5v1M10 9.5a3 3 0 100-6 3 3 0 000 6z') },
   { to: '/admin/organizaciones', label: 'Organizaciones', icon: icon('M3 17h14M5 17V7l5-3 5 3v10M8 10h1M11 10h1M8 13h1M11 13h1') },
+  { to: '/admin/soporte', label: 'Mesa de ayuda', icon: icon('M4 4h12v9H8l-4 3.5zM7.5 7.5h5M7.5 10h3'), roles: ['soporte'], badge: true },
   { to: '/admin/planes', label: 'Planes', icon: icon('M4 5h12v4H4zM4 11h12v4H4z') },
   { to: '/admin/tasas', label: 'Tasas legales', icon: icon('M5 15L15 5M6.5 8a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM13.5 15a1.5 1.5 0 100-3 1.5 1.5 0 000 3z'), roles: ['finanzas', 'soporte'] },
   { to: '/admin/bitacora', label: 'Bitácora', icon: icon('M6 3h8l2 2v12H4V5zM7 8h6M7 11h6M7 14h4'), roles: ['soporte'] },
@@ -22,6 +25,16 @@ export default function AdminLayout() {
   const { admin, ready, logout, can } = useAdminAuth();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [pending, setPending] = useState(0);
+  useEffect(() => { window.scrollTo(0, 0); }, [location.pathname]);
+
+  useEffect(() => {
+    if (!admin || !can('soporte')) return undefined;
+    const load = () => api('/admin/support/summary').then((s) => setPending(s.unread + s.unassigned)).catch(() => {});
+    load();
+    const t = setInterval(() => document.visibilityState === 'visible' && load(), 30_000);
+    return () => clearInterval(t);
+  }, [admin, can, location.pathname]);
 
   if (!ready) return <div className="boot"><Loading label="Abriendo el panel" /></div>;
   if (!admin) return <Navigate to="/admin/login" replace state={{ from: location.pathname }} />;
@@ -39,7 +52,7 @@ export default function AdminLayout() {
         <nav className="sidebar-nav" aria-label="Secciones">
           {NAV.filter((n) => !n.roles || can(...n.roles)).map((n) => (
             <NavLink key={n.to} to={n.to} end={n.end} onClick={() => setMenuOpen(false)}>
-              {n.icon}<span>{n.label}</span>
+              {n.icon}<span>{n.label}</span>{n.badge && pending > 0 && <span className="nav-badge">{pending > 9 ? '9+' : pending}</span>}
             </NavLink>
           ))}
         </nav>
@@ -64,7 +77,7 @@ export default function AdminLayout() {
       <button type="button" className="scrim" aria-label="Cerrar menú" onClick={() => setMenuOpen(false)} tabIndex={-1} />
 
       <main className="content">
-        <Outlet />
+        <ErrorBoundary resetKey={location.pathname}><Outlet /></ErrorBoundary>
       </main>
     </div>
   );

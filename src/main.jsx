@@ -4,6 +4,7 @@ import { BrowserRouter, Outlet, Route, Routes } from 'react-router-dom';
 import './styles/base.css';
 import './styles/admin.css';
 import './styles/app.css';
+import './styles/portal.css';
 import { ToastProvider } from './components/Toast.jsx';
 
 // Panel de la plataforma
@@ -19,6 +20,7 @@ import Plans from './pages/admin/Plans.jsx';
 import RateCaps from './pages/admin/RateCaps.jsx';
 import Audit from './pages/admin/Audit.jsx';
 import Admins from './pages/admin/Admins.jsx';
+import SupportDesk from './pages/admin/SupportDesk.jsx';
 
 // App de las empresas
 import { AppAuthProvider } from './app/AppAuth.jsx';
@@ -36,7 +38,14 @@ import Payments from './app/pages/Payments.jsx';
 import CashAccounts from './app/pages/CashAccounts.jsx';
 import Team from './app/pages/Team.jsx';
 import Settings from './app/pages/Settings.jsx';
+import Support from './app/pages/Support.jsx';
 import NotFound from './app/pages/NotFound.jsx';
+
+// Portal del deudor
+import PortalLayout from './portal/PortalLayout.jsx';
+import PortalLogin from './portal/pages/PortalLogin.jsx';
+import PortalHome from './portal/pages/PortalHome.jsx';
+import PortalLoan from './portal/pages/PortalLoan.jsx';
 
 const AdminScope = () => <AdminAuthProvider><Outlet /></AdminAuthProvider>;
 const AppScope = () => <AppAuthProvider><Outlet /></AppAuthProvider>;
@@ -58,7 +67,15 @@ createRoot(document.getElementById('root')).render(
               <Route path="tasas" element={<RateCaps />} />
               <Route path="bitacora" element={<Audit />} />
               <Route path="administradores" element={<Admins />} />
+              <Route path="soporte" element={<SupportDesk />} />
             </Route>
+          </Route>
+
+          {/* Portal público del deudor: /p/slug-de-la-empresa */}
+          <Route path="/p/:slug" element={<PortalLayout />}>
+            <Route index element={<PortalLogin />} />
+            <Route path="inicio" element={<PortalHome />} />
+            <Route path="prestamo/:id" element={<PortalLoan />} />
           </Route>
 
           <Route element={<AppScope />}>
@@ -76,6 +93,7 @@ createRoot(document.getElementById('root')).render(
               <Route path="cajas" element={<CashAccounts />} />
               <Route path="equipo" element={<Team />} />
               <Route path="configuracion" element={<Settings />} />
+              <Route path="soporte" element={<Support />} />
               <Route path="*" element={<NotFound />} />
             </Route>
           </Route>

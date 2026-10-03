@@ -166,3 +166,16 @@ select.input { padding-right: 32px; appearance: none; background-image: url("dat
 .modal-body { padding: 18px 22px; overflow-y: auto; display: grid; gap: 16px; }
 .modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 22px; border-top: 1px solid var(--line-2); }
 .modal-lead { color: var(--ink-2); }
+
+/* Campos obligatorios y errores */
+.field label .req { color: var(--bad); font-weight: 700; }
+.field label .opt { color: var(--muted); font-weight: 400; font-size: 12px; }
+.has-error .input { border-color: var(--bad); background: #fffafa; }
+.has-error .input:focus { box-shadow: 0 0 0 3px rgba(168, 58, 50, .15); }
+.field-error { display: flex; gap: 6px; align-items: flex-start; }
+.field-error::before { content: "!"; flex: none; display: inline-grid; place-items: center; width: 15px; height: 15px; margin-top: 2px; border-radius: 50%; background: var(--bad); color: #fff; font-size: 10px; font-weight: 700; }
+.form-summary { padding: 10px 14px; border-radius: var(--r-sm); background: var(--bad-bg); color: var(--bad); font-size: 14px; font-weight: 600; }
+.form-legend { font-size: 12.5px; color: var(--muted); }
+.form-legend .req { color: var(--bad); font-weight: 700; }
+.form-grid > .form-summary, .form-grid > .form-legend { grid-column: 1 / -1; }
+.stack > .form-summary { margin-bottom: 16px; }

@@ -71,6 +71,16 @@ export const ACTIONS = {
   'support.view_loan': 'Consultó un préstamo (soporte)',
   'support.refresh_loan': 'Recalculó un préstamo (soporte)',
   'admin.update': 'Editó un administrador',
+  'support.delete_loan': 'Eliminó un crédito (soporte)',
+  'support.restore_loan': 'Restauró un crédito (soporte)',
+  'support.edit_borrower': 'Corrigió un deudor (soporte)',
+  'support.edit_loan': 'Corrigió datos de un crédito (soporte)',
+  'support.replan_loan': 'Corrigió condiciones y rehízo cuotas (soporte)',
+  'support.edit_installment': 'Ajustó una cuota (soporte)',
+  'support.edit_payment': 'Corrigió un pago (soporte)',
+  'support.reverse_payment': 'Reversó un pago (soporte)',
+  'support.edit_cash': 'Corrigió una caja (soporte)',
+  'support.ticket_update': 'Actualizó una solicitud',
 };
 
 export const AMORTIZATION = {

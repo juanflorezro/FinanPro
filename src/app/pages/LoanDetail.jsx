@@ -6,6 +6,8 @@ import { useAppAuth } from '../AppAuth.jsx';
 import { useAppAction } from '../useAppAction.js';
 import { PageHeader, Panel, Button, Loading, ErrorNote, Empty, DefList, Modal, Input, Select, Textarea, StatusBadge, Badge } from '../../components/ui.jsx';
 import { money, date, dateTime, percent, number, toCents, inputDate } from '../../utils/format.js';
+import { rules, validate, focusFirstError } from '../../utils/validation.js';
+import { ExportButton } from '../../components/ExportButton.jsx';
 import { LOAN_STATUS, INSTALLMENT_STATUS, AMORTIZATION, FREQUENCY, PAYMENT_METHODS_APP, RATE_CHECK } from '../../utils/labels.js';
 
 const OPEN = ['desembolsado', 'al_dia', 'en_mora'];
@@ -20,7 +22,9 @@ export default function LoanDetail() {
   const { run, busy } = useAppAction();
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
+  const [errors, setErrors] = useState({});
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const guard = (schema) => { const found = validate(form, schema); setErrors(found); if (Object.keys(found).length) { focusFirstError(); return false; } return true; };
 
   if (loading) return <Loading />;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
@@ -30,7 +34,7 @@ export default function LoanDetail() {
   const isOpen = OPEN.includes(l.status);
   const free = l.amortization === 'abonos_libres';
   const exigible = installments.filter((i) => new Date(i.dueDate) <= new Date() && i.status !== 'pagada').reduce((a, i) => a + pendingOf(i), 0);
-  const close = () => setModal(null);
+  const close = () => { setModal(null); setErrors({}); };
   const done = async (fn, msg) => { const r = await run(fn, msg); if (r.ok) { close(); reload(); } return r; };
 
   const openPayment = () => {
@@ -43,10 +47,14 @@ export default function LoanDetail() {
       <PageHeader back={<Link to="/prestamos" className="back">Préstamos</Link>}
         title={`Préstamo ${l.loanNumber}`}
         subtitle={<><StatusBadge map={LOAN_STATUS} value={l.status} /><Link to={`/deudores/${l.borrowerId?._id}`}>{l.borrowerId?.firstName} {l.borrowerId?.lastName}</Link><span className="muted">{l.borrowerId?.phone}</span></>}
-        actions={active && <>
+        actions={<>
+          <ExportButton path={`/exports/loans/${id}.xlsx`} label="Estado de cuenta" />
+          <Link to={`/soporte?nuevo=1&prestamo=${id}&numero=${l.loanNumber}`} className="btn btn-ghost">Pedir ayuda</Link>
+          {active && <>
           {['solicitud', 'aprobado'].includes(l.status) && can('loan.disburse') && <Button onClick={() => { setForm({ disbursementDate: inputDate(new Date()), firstDueDate: '' }); setModal('disburse'); }}>Desembolsar</Button>}
           {isOpen && can('payment.create') && <Button onClick={openPayment}>Registrar pago</Button>}
           {isOpen && <Button variant="ghost" loading={busy && modal === null} onClick={() => run(() => appApi(`/loans/${id}/refresh`, { method: 'POST' }), 'Saldos y mora actualizados').then((r) => r.ok && reload())}>Actualizar mora</Button>}
+          </>}
         </>} />
 
       <section className="ledger ledger-compact" aria-label="Saldos del préstamo">
@@ -122,7 +130,7 @@ export default function LoanDetail() {
               ['Forma de pago', AMORTIZATION[l.amortization]?.[0]],
               ['Frecuencia', FREQUENCY[l.frequency]],
               !free && ['Cuotas', number(l.termCount)],
-              ['Mora', Number(l.lateRate) ? `${percent(l.lateRate)} ${l.lateRateBasis}` : 'Sin interés de mora'],
+              ['Mora', Number(l.lateRate) ? `${percent(l.lateRate)} ${l.lateRateBasis}, sobre ${l.lateInterestBase === 'capital_e_interes' ? 'capital e intereses' : 'capital'} vencido` : 'Sin interés de mora'],
               ['Días de gracia', number(l.graceDays)],
               ['Tipo', l.lendingRegime === 'informal' ? 'Informal' : 'Formal'],
               ['Desembolso', date(l.disbursementDate)],
@@ -136,7 +144,11 @@ export default function LoanDetail() {
       {/* ---------- Registrar pago ---------- */}
       <Modal open={modal === 'pay'} title="Registrar pago" onClose={close} width={560}
         footer={<><Button variant="ghost" onClick={close}>Cancelar</Button>
-          <Button loading={busy} disabled={!form.amount || !form.cashAccountId} onClick={() => done(() => appApi('/payments', {
+          <Button loading={busy} onClick={() => guard({
+            amount: [rules.required('Escribe el valor recibido'), rules.money()],
+            cashAccountId: [rules.required('Elige la caja donde entra el dinero')],
+            paidAt: [rules.required('Elige la fecha del pago')],
+          }) && done(() => appApi('/payments', {
             method: 'POST',
             headers: { 'Idempotency-Key': form.key },
             body: {
@@ -147,12 +159,12 @@ export default function LoanDetail() {
           }), 'Pago registrado')}>Registrar pago</Button></>}>
         <p className="modal-lead">Vencido hoy: <strong>{money(exigible, cur)}</strong>{l.nextDueDate && <>. Próxima cuota: {money(l.nextDueAmount, cur)} el {date(l.nextDueDate)}</>}.</p>
         <div className="form-grid">
-          <Input label="Valor recibido" inputMode="numeric" value={form.amount ?? ''} onChange={set('amount')} hint={form.amount ? money(toCents(form.amount), cur) : 'Sin puntos ni comas'} autoFocus />
-          <Input label="Fecha" type="date" value={form.paidAt ?? ''} onChange={set('paidAt')} max={inputDate(new Date())} />
-          <Select label="Medio" value={form.method ?? 'efectivo'} onChange={set('method')} options={PAYMENT_METHODS_APP} />
+          <Input label="Valor recibido" required inputMode="numeric" value={form.amount ?? ''} onChange={set('amount')} error={errors.amount} hint={form.amount ? money(toCents(form.amount), cur) : 'Sin puntos ni comas'} autoFocus />
+          <Input label="Fecha" required type="date" value={form.paidAt ?? ''} onChange={set('paidAt')} max={inputDate(new Date())} error={errors.paidAt} />
+          <Select label="Medio" required value={form.method ?? 'efectivo'} onChange={set('method')} options={PAYMENT_METHODS_APP} />
           {cash.data?.length ? (
-            <Select label="Caja" value={form.cashAccountId ?? ''} onChange={set('cashAccountId')} options={Object.fromEntries(cash.data.map((c) => [c._id, c.name]))} />
-          ) : <p className="field-hint">No tienes cajas. <Link to="/cajas">Crea una</Link> para registrar pagos.</p>}
+            <Select label="Caja" required value={form.cashAccountId ?? ''} onChange={set('cashAccountId')} options={Object.fromEntries(cash.data.map((c) => [c._id, c.name]))} error={errors.cashAccountId} />
+          ) : <p className="field-error">No tienes cajas. <Link to="/cajas">Crea una</Link> para registrar pagos.</p>}
           <Input label="Referencia" value={form.reference ?? ''} onChange={set('reference')} hint="N° de transferencia, opcional" className="span-2" />
           {!free && (
             <Select label="Si paga más de lo vencido" value={form.excessMode ?? 'proximas_cuotas'} onChange={set('excessMode')} className="span-2"
@@ -176,9 +188,9 @@ export default function LoanDetail() {
       {/* ---------- Reversar ---------- */}
       <Modal open={modal === 'reverse'} title={`Reversar el recibo ${form.receipt ?? ''}`} onClose={close}
         footer={<><Button variant="ghost" onClick={close}>Cancelar</Button>
-          <Button variant="danger" loading={busy} disabled={(form.reason ?? '').trim().length < 5} onClick={() => done(() => appApi(`/payments/${form.paymentId}/reverse`, { method: 'POST', body: { reason: form.reason } }), 'Pago reversado')}>Reversar pago</Button></>}>
+          <Button variant="danger" loading={busy} onClick={() => guard({ reason: [rules.required('Escribe el motivo del reverso'), rules.minLen(5, 'Escribe al menos 5 caracteres')] }) && done(() => appApi(`/payments/${form.paymentId}/reverse`, { method: 'POST', body: { reason: form.reason } }), 'Pago reversado')}>Reversar pago</Button></>}>
         <p className="modal-lead">El pago no se borra: se crea un movimiento en negativo y las cuotas vuelven a quedar como antes.</p>
-        <Textarea label="Motivo" value={form.reason ?? ''} onChange={set('reason')} hint="Por ejemplo: valor digitado por error" />
+        <Textarea label="Motivo" required value={form.reason ?? ''} onChange={set('reason')} error={errors.reason} hint="Por ejemplo: valor digitado por error" />
         <Badge tone="warn">Esta acción queda registrada</Badge>
       </Modal>
     </>

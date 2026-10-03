@@ -4,10 +4,13 @@ import { useAppApi } from '../../api/useAppApi.js';
 import { appApi } from '../../api/appClient.js';
 import { useAppAuth } from '../AppAuth.jsx';
 import { useAppAction } from '../useAppAction.js';
+import { useToast } from '../../components/Toast.jsx';
 import { PageHeader, Panel, Button, Loading, ErrorNote, Empty, DefList, Modal, StatusBadge } from '../../components/ui.jsx';
 import { money, date } from '../../utils/format.js';
 import { LOAN_STATUS } from '../../utils/labels.js';
-import { BorrowerForm, borrowerBody, borrowerToForm, BORROWER_STATUS, DOC_TYPES } from './Borrowers.jsx';
+import { BorrowerForm, borrowerBody, borrowerToForm, BORROWER_STATUS, DOC_TYPES, BORROWER_RULES } from './Borrowers.jsx';
+import { validate, serverFieldErrors, focusFirstError } from '../../utils/validation.js';
+import { ExportButton } from '../../components/ExportButton.jsx';
 
 export default function BorrowerDetail() {
   const { id } = useParams();
@@ -16,12 +19,16 @@ export default function BorrowerDetail() {
   const { data, error, loading, reload } = useAppApi(`/borrowers/${id}`);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({});
+  const [errors, setErrors] = useState({});
   const { run, busy } = useAppAction();
+  const notify = useToast();
 
   if (loading) return <Loading />;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
   const { borrower: b, loans } = data;
   const active = org.status === 'activa';
+  const portalUrl = `${window.location.origin}/p/${org.slug}`;
+  const portalMsg = `Hola ${b.firstName}, consulta tus préstamos con ${org.name} aquí: ${portalUrl} (ingresa con tu documento).`;
 
   return (
     <>
@@ -29,7 +36,8 @@ export default function BorrowerDetail() {
         title={`${b.firstName} ${b.lastName}`}
         subtitle={<><StatusBadge map={BORROWER_STATUS} value={b.status} /><span className="muted">{b.docType} {b.docNumber}, {b.code}</span></>}
         actions={<>
-          {can('borrower.update') && active && <Button variant="secondary" onClick={() => { setForm(borrowerToForm(b)); setEditing(true); }}>Editar</Button>}
+          <ExportButton path={`/exports/borrowers/${id}.xlsx`} label="Ficha en Excel" />
+          {can('borrower.update') && active && <Button variant="secondary" onClick={() => { setForm(borrowerToForm(b)); setErrors({}); setEditing(true); }}>Editar</Button>}
           {can('loan.create') && active && b.status === 'activo' && <Button onClick={() => navigate(`/prestamos/nuevo?deudor=${b._id}`)}>Nuevo préstamo</Button>}
         </>} />
 
@@ -52,6 +60,14 @@ export default function BorrowerDetail() {
             </table>
           ) : <Empty title="Sin préstamos todavía" />}
         </Panel>
+        <div className="stack">
+        <Panel title="Portal del cliente">
+          <p className="panel-intro small">{b.email || b.phone ? 'Puede consultar sus préstamos con su documento y un código.' : 'Agrega su correo para que pueda entrar al portal.'}</p>
+          <div className="row-actions wrap">
+            <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard?.writeText(portalMsg); notify('Mensaje copiado'); }}>Copiar mensaje</Button>
+            {b.phone && <a className="btn btn-ghost btn-sm" target="_blank" rel="noreferrer" href={`https://wa.me/${(b.phone.startsWith('57') ? '' : '57') + b.phone.replace(/\D/g, '')}?text=${encodeURIComponent(portalMsg)}`}>Enviar por WhatsApp</a>}
+          </div>
+        </Panel>
         <Panel title="Datos">
           <DefList items={[
             ['Documento', `${DOC_TYPES[b.docType]} ${b.docNumber}`],
@@ -65,15 +81,19 @@ export default function BorrowerDetail() {
             ['Registrado', date(b.createdAt)],
           ]} />
         </Panel>
+        </div>
       </div>
 
       <Modal open={editing} title="Editar deudor" onClose={() => setEditing(false)} width={660}
         footer={<><Button variant="ghost" onClick={() => setEditing(false)}>Cancelar</Button>
           <Button loading={busy} onClick={async () => {
-            const r = await run(() => appApi(`/borrowers/${id}`, { method: 'PATCH', body: borrowerBody(form, true) }), 'Cambios guardados');
-            if (r.ok) { setEditing(false); reload(); }
+            const found = validate(form, BORROWER_RULES);
+            setErrors(found);
+            if (Object.keys(found).length) { focusFirstError(); return; }
+            const r = await run(() => appApi(`/borrowers/${id}`, { method: 'PATCH', body: borrowerBody(form, true) }), 'Cambios guardados', { silentCodes: ['VALIDATION_ERROR'] });
+            if (r.ok) { setEditing(false); reload(); } else setErrors(serverFieldErrors(r.error));
           }}>Guardar cambios</Button></>}>
-        <BorrowerForm value={form} onChange={setForm} editing />
+        <BorrowerForm value={form} onChange={(v) => { setForm(v); if (Object.keys(errors).length) setErrors(validate(v, BORROWER_RULES)); }} editing errors={errors} />
       </Modal>
     </>
   );

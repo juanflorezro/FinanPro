@@ -5,11 +5,12 @@ import { useAppApi } from '../../api/useAppApi.js';
 import { useAppAuth } from '../AppAuth.jsx';
 import { useAppAction } from '../useAppAction.js';
 import { useDebounced } from '../../utils/useDebounced.js';
-import { PageHeader, Panel, Button, Input, Select, Textarea, Badge, Loading } from '../../components/ui.jsx';
+import { PageHeader, Panel, Button, Input, Select, Textarea, Badge, Loading, FormErrors } from '../../components/ui.jsx';
+import { rules, validate, serverFieldErrors, focusFirstError } from '../../utils/validation.js';
 import { money, date, percent, toCents, inputDate } from '../../utils/format.js';
 import { AMORTIZATION, RATE_BASIS, FREQUENCY } from '../../utils/labels.js';
 
-function BorrowerPicker({ value, onChange }) {
+function BorrowerPicker({ value, onChange, error }) {
   const [q, setQ] = useState('');
   const search = useDebounced(q, 250);
   const { data } = useAppApi(search.length >= 2 && !value ? '/borrowers' : null, { q: search, limit: 8 });
@@ -23,7 +24,7 @@ function BorrowerPicker({ value, onChange }) {
   }
   return (
     <div className="picker">
-      <Input label="Deudor" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Escribe nombre o documento" autoFocus />
+      <Input label="Deudor" required value={q} onChange={(e) => setQ(e.target.value)} placeholder="Escribe nombre o documento" autoFocus error={error} hint="Escribe al menos 2 letras y elige de la lista" />
       {data?.items?.length > 0 && (
         <ul className="picker-list" role="listbox">
           {data.items.map((b) => (
@@ -38,7 +39,7 @@ function BorrowerPicker({ value, onChange }) {
 
 const INITIAL = {
   lendingRegime: 'formal', principal: '', rate: '', rateBasis: 'mensual', rateKind: 'efectiva', interestBase: 'saldo_capital',
-  amortization: 'frances', frequency: 'mensual', termCount: '12', lateRate: '', lateRateBasis: 'mensual', graceDays: '0',
+  amortization: 'frances', frequency: 'mensual', termCount: '12', lateRate: '', lateRateBasis: 'mensual', lateInterestBase: 'capital', graceDays: '0',
   firstDueDate: '', notes: '', disburseNow: true,
 };
 
@@ -53,8 +54,13 @@ export default function NewLoan() {
   const [sim, setSim] = useState(null);
   const [simError, setSimError] = useState('');
   const [ack, setAck] = useState(false);
+  const [errors, setErrors] = useState({});
   const { run, busy } = useAppAction();
-  const set = (k) => (e) => setForm({ ...form, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
+  const set = (k) => (e) => {
+    const v = { ...form, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value };
+    setForm(v);
+    if (Object.keys(errors).length) setErrors(check(v, borrower));
+  };
 
   useEffect(() => { if (preset.data?.borrower) setBorrower(preset.data.borrower); }, [preset.data]);
   const regimes = settings.data?.settings?.allowedRegimes ?? ['formal', 'informal'];
@@ -78,18 +84,35 @@ export default function NewLoan() {
     return () => { cancelled = true; };
   }, [simKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  function check(v, b) {
+    const isFree = v.amortization === 'abonos_libres';
+    const found = validate(v, {
+      principal: [rules.required('Escribe el monto a prestar'), rules.money()],
+      rate: [rules.required('Escribe la tasa de interés'), rules.decimal({ min: 0, max: 1000 }, 'Escribe un porcentaje válido, por ejemplo 2.5')],
+      ...(!isFree && { termCount: [rules.required('Escribe el número de cuotas'), rules.integer({ min: 1, max: 600 }, 'Entre 1 y 600 cuotas')] }),
+      lateRate: [rules.decimal({ min: 0, max: 1000 }, 'Escribe un porcentaje válido')],
+      graceDays: [rules.integer({ min: 0, max: 90 }, 'Entre 0 y 90 días')],
+    });
+    if (!b) found.borrower = 'Elige el deudor';
+    return found;
+  }
+
   const blocked = sim && !sim.compliance.ok && sim.compliance.code !== 'RATE_CAP_ACK_REQUIRED';
   const needsAck = sim?.compliance.code === 'RATE_CAP_ACK_REQUIRED';
 
   async function create() {
+    const found = check(form, borrower);
+    if (needsAck && !ack) found.ack = 'Confirma el aviso de la tasa para continuar';
+    setErrors(found);
+    if (Object.keys(found).length) { focusFirstError(); return; }
     const body = {
       ...simBody, borrowerId: borrower._id, lendingRegime: form.lendingRegime, graceDays: Number(form.graceDays || 0),
-      ...(form.lateRate && { lateRate: String(form.lateRate).replace(',', '.'), lateRateBasis: form.lateRateBasis }),
+      ...(form.lateRate && { lateRate: String(form.lateRate).replace(',', '.'), lateRateBasis: form.lateRateBasis, lateInterestBase: form.lateInterestBase }),
       ...(form.notes && { notes: form.notes }), ...(needsAck && ack && { acknowledgeRateCap: true }),
     };
     delete body.firstDueDate;
-    const created = await run(() => appApi('/loans', { method: 'POST', body }), form.disburseNow ? null : 'Préstamo creado');
-    if (!created.ok) return;
+    const created = await run(() => appApi('/loans', { method: 'POST', body }), form.disburseNow ? null : 'Préstamo creado', { silentCodes: ['VALIDATION_ERROR'] });
+    if (!created.ok) { const server = serverFieldErrors(created.error); setErrors(Object.keys(server).length ? server : {}); if (!Object.keys(server).length && created.error.code === 'VALIDATION_ERROR') setErrors({ principal: created.error.message }); focusFirstError(); return; }
     if (form.disburseNow) {
       await run(() => appApi(`/loans/${created.result._id}/disburse`, { method: 'POST', body: form.firstDueDate ? { firstDueDate: form.firstDueDate } : {} }), 'Préstamo creado y desembolsado');
     }
@@ -104,7 +127,8 @@ export default function NewLoan() {
       <PageHeader back={<Link to="/prestamos" className="back">Préstamos</Link>} title="Nuevo préstamo" subtitle="La tasa la defines tú en cada préstamo. A la derecha ves las cuotas antes de crearlo." />
       <div className="grid-main loan-builder">
         <div className="stack">
-          <Panel title="Deudor"><BorrowerPicker value={borrower} onChange={setBorrower} /></Panel>
+          <FormErrors errors={errors} />
+          <Panel title="Deudor"><BorrowerPicker value={borrower} onChange={(b) => { setBorrower(b); if (b) setErrors(({ borrower: _, ...rest }) => rest); }} error={errors.borrower} /></Panel>
 
           <Panel title="Condiciones">
             <div className="form-grid">
@@ -115,9 +139,9 @@ export default function NewLoan() {
                   <label><input type="radio" checked={form.lendingRegime === 'informal'} onChange={() => setForm({ ...form, lendingRegime: 'informal' })} /> Informal</label>
                 </fieldset>
               )}
-              <Input label="Monto a prestar" inputMode="numeric" value={form.principal} onChange={set('principal')} placeholder="1000000" hint={form.principal ? money(toCents(form.principal), org.currency) : 'Sin puntos ni comas'} className="span-2" />
-              <Input label="Tasa de interés (%)" inputMode="decimal" value={form.rate} onChange={set('rate')} placeholder="2.5" />
-              <Select label="La tasa es" value={form.rateBasis} onChange={set('rateBasis')} options={RATE_BASIS} />
+              <Input label="Monto a prestar" required inputMode="numeric" value={form.principal} onChange={set('principal')} placeholder="1000000" error={errors.principal} hint={form.principal ? money(toCents(form.principal), org.currency) : 'Sin puntos ni comas'} className="span-2" />
+              <Input label="Tasa de interés (%)" required inputMode="decimal" value={form.rate} onChange={set('rate')} placeholder="2.5" error={errors.rate} />
+              <Select label="La tasa es" required value={form.rateBasis} onChange={set('rateBasis')} options={RATE_BASIS} />
               {form.rateBasis === 'anual' && (
                 <Select label="Tipo de tasa anual" value={form.rateKind} onChange={set('rateKind')} options={{ efectiva: 'Efectiva anual (EA)', nominal: 'Nominal (se divide por período)' }} className="span-2" />
               )}
@@ -133,8 +157,8 @@ export default function NewLoan() {
               ))}
             </div>
             <div className="form-grid section-gap">
-              <Select label={free ? 'Cobro de interés' : 'Frecuencia de las cuotas'} value={form.frequency} onChange={set('frequency')} options={FREQUENCY} />
-              {!free && <Input label="Número de cuotas" type="number" min="1" max="600" value={form.termCount} onChange={set('termCount')} />}
+              <Select label={free ? 'Cobro de interés' : 'Frecuencia de las cuotas'} required value={form.frequency} onChange={set('frequency')} options={FREQUENCY} />
+              {!free && <Input label="Número de cuotas" required type="number" min="1" max="600" value={form.termCount} onChange={set('termCount')} error={errors.termCount} />}
               <Input label="Primera cuota" type="date" value={form.firstDueDate} onChange={set('firstDueDate')} min={inputDate(new Date())} hint="Vacío: un período después del desembolso" />
               {['aleman', 'solo_interes', 'abonos_libres'].includes(form.amortization) && (
                 <Select label="El interés se calcula sobre" value={form.interestBase} onChange={set('interestBase')} options={{ saldo_capital: 'El saldo que va quedando', capital_inicial: 'El capital inicial' }} />
@@ -144,9 +168,14 @@ export default function NewLoan() {
 
           <Panel title="Mora y notas">
             <div className="form-grid">
-              <Input label="Interés de mora (%)" inputMode="decimal" value={form.lateRate} onChange={set('lateRate')} placeholder="0" hint="Se cobra sobre lo vencido" />
+              <Input label="Interés de mora (%)" inputMode="decimal" value={form.lateRate} onChange={set('lateRate')} placeholder="0" error={errors.lateRate} hint="Opcional. Se cobra sobre lo vencido" />
               <Select label="La mora es" value={form.lateRateBasis} onChange={set('lateRateBasis')} options={RATE_BASIS} />
-              <Input label="Días de gracia" type="number" min="0" max="90" value={form.graceDays} onChange={set('graceDays')} hint="Días después del vencimiento sin cobrar mora" />
+              {form.lateRate && (
+                <Select label="La mora se cobra sobre" value={form.lateInterestBase} onChange={set('lateInterestBase')} className="span-2"
+                  options={{ capital: 'Solo el capital vencido (recomendado)', capital_e_interes: 'Capital e intereses vencidos' }}
+                  hint="Cobrar mora sobre intereses (interés sobre interés) está restringido por ley en Colombia para créditos formales." />
+              )}
+              <Input label="Días de gracia" type="number" min="0" max="90" value={form.graceDays} onChange={set('graceDays')} error={errors.graceDays} hint="Días después del vencimiento sin cobrar mora" />
               <Textarea label="Notas" value={form.notes} onChange={set('notes')} className="span-2" />
             </div>
           </Panel>
@@ -164,7 +193,8 @@ export default function NewLoan() {
                 {sim.compliance.code === 'RATE_CAP_ACK_REQUIRED' && (
                   <div className="notice notice-warn">
                     <p>{sim.compliance.message}</p>
-                    <label className="check"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /> Entiendo y quiero crear el préstamo con esta tasa</label>
+                    <label className="check"><input type="checkbox" checked={ack} aria-invalid={errors.ack ? true : undefined} onChange={(e) => { setAck(e.target.checked); setErrors(({ ack: _, ...rest }) => rest); }} /> Entiendo y quiero crear el préstamo con esta tasa</label>
+                    {errors.ack && <p className="field-error">{errors.ack}</p>}
                   </div>
                 )}
                 {blocked && <div className="notice notice-bad"><p>{sim.compliance.message}</p></div>}
@@ -193,10 +223,10 @@ export default function NewLoan() {
           </Panel>
           <Panel>
             <label className="check"><input type="checkbox" checked={form.disburseNow} onChange={set('disburseNow')} /> Desembolsar ahora (genera las cuotas de inmediato)</label>
-            <Button className="btn-block section-gap" loading={busy} disabled={!borrower || !sim || blocked || (needsAck && !ack)} onClick={create}>
+            <Button className="btn-block section-gap" loading={busy} disabled={blocked} onClick={create}>
               {form.disburseNow ? 'Crear y desembolsar' : 'Crear préstamo'}
             </Button>
-            {!borrower && <p className="field-hint">Elige el deudor para continuar.</p>}
+            {blocked && <p className="field-error">Baja la tasa para poder crear el préstamo.</p>}
           </Panel>
         </aside>
       </div>

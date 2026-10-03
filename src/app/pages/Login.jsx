@@ -128,9 +128,9 @@ export default function Login() {
         </div>
         <GoogleButton onCredential={onGoogle} text={mode === 'login' ? 'signin_with' : 'signup_with'} />
         <div className="divider"><span>o con tu correo</span></div>
-        {mode === 'register' && <Input label="Tu nombre" value={form.name} onChange={set('name')} autoComplete="name" />}
-        <Input label="Correo" type="email" autoComplete="username" value={form.email} onChange={set('email')} />
-        <Input label="Contraseña" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={form.password} onChange={set('password')}
+        {mode === 'register' && <Input label="Tu nombre" required value={form.name} onChange={set('name')} autoComplete="name" />}
+        <Input label="Correo" required type="email" autoComplete="username" value={form.email} onChange={set('email')} />
+        <Input label="Contraseña" required type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={form.password} onChange={set('password')}
           hint={mode === 'register' ? 'Mínimo 8 caracteres' : undefined} />
         {error && <p className="form-error" role="alert">{error}</p>}
         <Button type="submit" loading={busy} className="btn-block"

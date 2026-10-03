@@ -39,6 +39,7 @@ export async function appApi(path, { method = 'GET', body, query, headers, retry
   const res = await fetch(url, {
     method,
     credentials: 'include',
+    cache: 'no-store',
     headers: {
       ...(body !== undefined && { 'Content-Type': 'application/json' }),
       ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
@@ -61,4 +62,27 @@ export async function appApi(path, { method = 'GET', body, query, headers, retry
   const data = await parse(res);
   if (!res.ok) throw new ApiError(res.status, data);
   return data;
+}
+
+/** Descarga un archivo de la API (ej. Excel) con la sesión y la organización actuales. */
+export async function appDownload(path, query, fallbackName = 'archivo.xlsx') {
+  const url = new URL(BASE + path);
+  Object.entries(query ?? {}).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v); });
+  const doFetch = () => fetch(url, {
+    credentials: 'include',
+    cache: 'no-store',
+    headers: { ...(accessToken && { Authorization: `Bearer ${accessToken}` }), ...(getOrgId() && { 'X-Org-Id': getOrgId() }) },
+  });
+  let res = await doFetch();
+  if (res.status === 401) { await refreshAppSession(); res = await doFetch(); }
+  if (!res.ok) throw new ApiError(res.status, await parse(res).catch(() => null));
+  const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? fallbackName;
+  const blob = await res.blob();
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 4000);
 }

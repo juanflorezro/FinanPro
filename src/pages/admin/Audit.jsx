@@ -23,7 +23,7 @@ export default function Audit() {
           <Input aria-label="Desde" type="date" value={filters.from} onChange={set('from')} />
           <Input aria-label="Hasta" type="date" value={filters.to} onChange={set('to')} />
         </div>
-        {loading ? <Loading /> : error ? <ErrorNote error={error} onRetry={reload} /> : data.items.length === 0 ? <Empty title="Sin registros para estos filtros" /> : (
+        {loading ? <Loading /> : error ? <ErrorNote error={error} onRetry={reload} /> : !data?.items?.length ? <Empty title="Sin registros para estos filtros" /> : (
           <>
             <table className="table table-click">
               <thead><tr><th>Fecha</th><th>Quién</th><th>Qué hizo</th><th>Registro</th></tr></thead>

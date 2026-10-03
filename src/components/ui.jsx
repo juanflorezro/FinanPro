@@ -15,28 +15,43 @@ export function Button({ variant = 'primary', size, loading, children, className
   );
 }
 
-export function Field({ label, hint, error, children, className = '' }) {
+export function Field({ label, hint, error, required, children, className = '' }) {
   const id = useId();
-  const child = typeof children === 'function' ? children(id) : children;
+  const child = typeof children === 'function' ? children(id, `${id}-msg`) : children;
   return (
     <div className={`field ${error ? 'has-error' : ''} ${className}`}>
-      {label && <label htmlFor={id}>{label}</label>}
+      {label && (
+        <label htmlFor={id}>
+          {label}
+          {required && <span className="req" aria-hidden="true"> *</span>}
+        </label>
+      )}
       {child}
-      {error ? <p className="field-error">{error}</p> : hint && <p className="field-hint">{hint}</p>}
+      {error
+        ? <p className="field-error" id={`${id}-msg`} role="alert">{error}</p>
+        : hint && <p className="field-hint" id={`${id}-msg`}>{hint}</p>}
     </div>
   );
 }
 
-export const Input = ({ label, hint, error, className, ...props }) => (
-  <Field label={label} hint={hint} error={error} className={className}>
-    {(id) => <input id={id} className="input" {...props} />}
+const a11y = (id, msgId, error, hint, required) => ({
+  id,
+  'aria-invalid': error ? true : undefined,
+  'aria-describedby': error || hint ? msgId : undefined,
+  'aria-required': required || undefined,
+});
+
+// "required" solo marca el campo con * (la validación la hace cada formulario con utils/validation.js)
+export const Input = ({ label, hint, error, required, className, ...props }) => (
+  <Field label={label} hint={hint} error={error} required={required} className={className}>
+    {(id, msgId) => <input className="input" {...props} {...a11y(id, msgId, error, hint, required)} />}
   </Field>
 );
 
-export const Select = ({ label, hint, error, options, placeholder, className, ...props }) => (
-  <Field label={label} hint={hint} error={error} className={className}>
-    {(id) => (
-      <select id={id} className="input" {...props}>
+export const Select = ({ label, hint, error, required, options, placeholder, className, ...props }) => (
+  <Field label={label} hint={hint} error={error} required={required} className={className}>
+    {(id, msgId) => (
+      <select className="input" {...props} {...a11y(id, msgId, error, hint)}>
         {placeholder !== undefined && <option value="">{placeholder}</option>}
         {Object.entries(options).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
       </select>
@@ -44,11 +59,18 @@ export const Select = ({ label, hint, error, options, placeholder, className, ..
   </Field>
 );
 
-export const Textarea = ({ label, hint, error, className, ...props }) => (
-  <Field label={label} hint={hint} error={error} className={className}>
-    {(id) => <textarea id={id} className="input" rows={3} {...props} />}
+export const Textarea = ({ label, hint, error, required, className, ...props }) => (
+  <Field label={label} hint={hint} error={error} required={required} className={className}>
+    {(id, msgId) => <textarea className="input" rows={3} {...props} {...a11y(id, msgId, error, hint, required)} />}
   </Field>
 );
+
+/** Resumen arriba del formulario cuando hay errores. */
+export function FormErrors({ errors }) {
+  const n = Object.keys(errors ?? {}).length;
+  if (!n) return null;
+  return <div className="form-summary" role="alert">{n === 1 ? 'Revisa el campo marcado.' : `Revisa los ${n} campos marcados.`}</div>;
+}
 
 export function Badge({ tone = 'neutral', children }) {
   return <span className={`badge badge-${tone}`}>{children}</span>;
@@ -138,14 +160,28 @@ export function ErrorNote({ error, onRetry }) {
   );
 }
 
-export function Pagination({ page, limit, total, onPage }) {
+export function Pagination({ page, limit, total, onPage, onLimit }) {
   const pages = Math.max(1, Math.ceil((total ?? 0) / limit));
-  if (pages <= 1) return null;
+  if (!total) return null;
+  const from = (page - 1) * limit + 1;
+  const to = Math.min(page * limit, total);
   return (
     <nav className="pagination" aria-label="Paginación">
-      <span>{(page - 1) * limit + 1}–{Math.min(page * limit, total)} de {total}</span>
-      <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>Anterior</Button>
-      <Button variant="ghost" size="sm" disabled={page >= pages} onClick={() => onPage(page + 1)}>Siguiente</Button>
+      <span className="pagination-info">{from}–{to} de {total.toLocaleString('es-CO')}</span>
+      {onLimit && (
+        <select className="input pagination-size" value={limit} onChange={(e) => onLimit(Number(e.target.value))} aria-label="Registros por página">
+          {[10, 20, 50, 100].map((n) => <option key={n} value={n}>{n} por página</option>)}
+        </select>
+      )}
+      {pages > 1 && (
+        <span className="pagination-btns">
+          <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => onPage(1)} aria-label="Primera página">«</Button>
+          <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>Anterior</Button>
+          <span className="pagination-page">Página {page} de {pages}</span>
+          <Button variant="ghost" size="sm" disabled={page >= pages} onClick={() => onPage(page + 1)}>Siguiente</Button>
+          <Button variant="ghost" size="sm" disabled={page >= pages} onClick={() => onPage(pages)} aria-label="Última página">»</Button>
+        </span>
+      )}
     </nav>
   );
 }

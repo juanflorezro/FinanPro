@@ -1,0 +1,135 @@
+/* =====================================================================
+   PORTAL DEL DEUDOR. Pensado primero para celular (la mayoría entra desde
+   el enlace que le manda la empresa), y en computador se centra a 980 px.
+   ===================================================================== */
+.portal { min-height: 100dvh; display: flex; flex-direction: column; background: #f3f5f2; }
+.portal-center { align-items: center; justify-content: center; padding: 24px; }
+.portal-header {
+  position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: calc(12px + env(safe-area-inset-top)) clamp(16px, 4vw, 32px) 12px; background: var(--pine-900); color: #fff;
+}
+.portal-brand { display: flex; align-items: center; gap: 12px; color: #fff; text-decoration: none; min-width: 0; }
+.portal-brand:hover { color: #fff; }
+.portal-brand img { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; background: #fff; }
+.portal-mark { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 10px; background: var(--brass); color: var(--pine-950); font-weight: 700; }
+.portal-brand span { display: grid; line-height: 1.2; min-width: 0; }
+.portal-brand strong { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.portal-brand small { font-size: 12.5px; color: #a9c0b8; }
+.portal-out { min-height: 40px; padding: 0 16px; border: 1px solid rgba(255, 255, 255, .25); border-radius: 999px; background: transparent; color: #fff; font-weight: 600; cursor: pointer; }
+.portal-out:hover { background: rgba(255, 255, 255, .08); }
+.portal-main { flex: 1; width: 100%; max-width: 980px; margin: 0 auto; padding: 20px clamp(14px, 4vw, 28px) 32px; }
+.portal-footer { display: flex; justify-content: space-between; gap: 8px 20px; flex-wrap: wrap; padding: 16px clamp(16px, 4vw, 32px) calc(16px + env(safe-area-inset-bottom)); font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--line); background: var(--surface); }
+.portal-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: clamp(20px, 4vw, 32px); box-shadow: 0 10px 30px -18px rgba(15, 42, 36, .35); }
+.portal-narrow { max-width: 440px; }
+.portal .input { height: 48px; font-size: 16px; }
+.portal .btn-block { height: 50px; font-size: 15.5px; border-radius: 12px; }
+
+/* Ingreso */
+.portal-login { display: grid; grid-template-columns: 1.05fr 1fr; gap: clamp(20px, 5vw, 56px); align-items: center; min-height: calc(100dvh - 210px); }
+.portal-hero h1 { font-size: clamp(30px, 4.6vw, 46px); line-height: 1.05; font-stretch: 80%; letter-spacing: -0.02em; margin: 6px 0 14px; }
+.portal-hero > p { font-size: 17px; color: var(--ink-2); max-width: 40ch; }
+.portal-eyebrow, .p-eyebrow { font-size: 13px; font-weight: 700; color: var(--brass-deep); text-transform: uppercase; letter-spacing: .06em; }
+.portal-points { list-style: none; padding: 0; margin: 22px 0 0; display: grid; gap: 10px; }
+.portal-points li { display: flex; align-items: center; gap: 10px; color: var(--ink-2); }
+.portal-points li::before { content: ""; width: 20px; height: 20px; flex: none; border-radius: 50%; background: var(--pine-100) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M6 10.5l2.5 2.5L14 7.5' fill='none' stroke='%231f4d42' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat; }
+.portal-form { display: grid; gap: 16px; }
+.portal-form h2 { font-size: 22px; font-stretch: 85%; }
+.portal-form > .muted { margin-top: -8px; }
+
+/* Inicio */
+.p-greeting { font-size: clamp(26px, 4vw, 32px); font-stretch: 82%; margin-bottom: 16px; }
+.p-alert { padding: 14px 16px; border-radius: 14px; background: var(--bad-bg); color: #7a2a24; margin-bottom: 16px; border-left: 4px solid var(--bad); }
+.p-summary { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; margin-bottom: 26px; }
+.p-summary-main, .p-next { display: grid; gap: 4px; padding: 20px; border-radius: 18px; text-decoration: none; }
+.p-summary-main { background: var(--pine-900); color: #dfe9e5; }
+.p-summary-main span, .p-next span { font-size: 13.5px; }
+.p-summary-main strong { font-size: clamp(30px, 5vw, 40px); color: #fff; font-stretch: 80%; letter-spacing: -0.02em; line-height: 1.1; }
+.p-summary-main small { color: var(--brass); }
+.p-next { background: var(--surface); border: 1px solid var(--line); color: var(--ink); }
+.p-next strong { font-size: 26px; font-stretch: 82%; }
+.p-next small { color: var(--muted); }
+.p-next:hover { border-color: var(--pine-500); color: var(--ink); }
+.p-next.soon { border-color: #e3c98f; background: #fdf8ec; }
+.p-next.late { border-color: #e7b2ab; background: #fdf1ef; }
+.p-next.late span, .p-next.late strong { color: var(--bad); }
+.p-section-title { font-size: 18px; font-stretch: 88%; margin: 0 0 12px; }
+.p-loans { list-style: none; padding: 0; margin: 0 0 18px; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); }
+.p-loan { display: grid; gap: 14px; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; color: var(--ink); text-decoration: none; transition: border-color .15s, box-shadow .15s; }
+.p-loan:hover { border-color: var(--pine-500); color: var(--ink); box-shadow: 0 8px 24px -16px rgba(15, 42, 36, .4); }
+.p-loan-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.p-loan-top > div { display: grid; gap: 2px; }
+.p-loan-top small, .p-loan-foot { color: var(--muted); font-size: 13px; }
+.p-loan-figures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.p-loan-figures div { display: grid; gap: 2px; }
+.p-loan-figures span { font-size: 12px; color: var(--muted); }
+.p-loan-figures strong { font-size: 15px; }
+.p-loan-closed { padding: 14px 18px; }
+.p-progress { height: 8px; border-radius: 999px; background: var(--line-2); overflow: hidden; }
+.p-progress span { display: block; height: 100%; background: linear-gradient(90deg, var(--pine-700), var(--pine-500)); border-radius: 999px; }
+.p-toggle { width: 100%; min-height: 48px; border: 1px dashed var(--line); border-radius: 12px; background: transparent; color: var(--pine-700); font-weight: 600; cursor: pointer; margin-bottom: 12px; }
+
+/* Detalle */
+.p-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+.p-loan-page { display: grid; gap: 18px; }
+.p-loan-hero { display: grid; gap: 14px; padding: clamp(18px, 3vw, 26px); background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
+.p-loan-hero-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.p-loan-hero h1 { font-size: clamp(32px, 6vw, 44px); font-stretch: 78%; letter-spacing: -0.02em; line-height: 1.05; margin-top: 4px; }
+.p-hero-sub { font-size: 13px; color: var(--muted); }
+.p-hero-progress { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); margin-top: -6px; flex-wrap: wrap; }
+.p-hero-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line-2); padding-top: 14px; gap: 12px; }
+.p-hero-grid div { display: grid; gap: 2px; align-content: start; }
+.p-hero-grid span { font-size: 12.5px; color: var(--muted); }
+.p-hero-grid strong { font-size: 18px; font-stretch: 88%; }
+.p-hero-grid small { font-size: 12.5px; color: var(--muted); }
+.p-hero-grid .late strong, .p-hero-grid .late small { color: var(--bad); }
+.p-facts { padding: 18px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+.p-facts dl { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px 20px; }
+.p-facts dt { font-size: 12.5px; color: var(--muted); }
+.p-facts dd { margin: 2px 0 0; }
+.p-tabs { display: flex; }
+.p-tabs button { flex: 1; height: 44px; }
+.p-list-section { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.p-installments, .p-payments { list-style: none; margin: 0; padding: 0; }
+.p-installments li { display: grid; grid-template-columns: 14px 1fr auto auto; gap: 12px; align-items: center; padding: 14px 18px; border-top: 1px solid var(--line-2); }
+.p-installments li:first-child, .p-payments li:first-child { border-top: 0; }
+.p-dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line); background: var(--surface); }
+.st-pagada .p-dot { background: var(--ok); border-color: var(--ok); }
+.st-vencida .p-dot { background: var(--bad); border-color: var(--bad); }
+.st-parcial .p-dot { background: linear-gradient(90deg, var(--info) 50%, transparent 50%); border-color: var(--info); }
+.st-pagada .p-inst-main strong, .st-pagada .p-inst-amounts strong { color: var(--muted); }
+.p-inst-main, .p-inst-amounts { display: grid; gap: 2px; }
+.p-inst-amounts { text-align: right; }
+.p-inst-main small, .p-inst-amounts small { font-size: 12.5px; color: var(--muted); }
+.p-payments li { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 14px 18px; border-top: 1px solid var(--line-2); }
+.p-payments li > div { display: grid; gap: 2px; }
+.p-payments small { font-size: 12.5px; color: var(--muted); }
+.p-applied { color: var(--ink-2) !important; }
+.p-note { font-size: 13.5px; color: var(--muted); text-align: center; }
+.print-only { display: none; }
+
+@media (max-width: 820px) {
+  .portal-login { grid-template-columns: 1fr; min-height: 0; gap: 18px; }
+  .portal-hero > p { font-size: 15.5px; }
+  .portal-points { display: none; }
+  .p-summary { grid-template-columns: 1fr; }
+  .p-hero-grid { grid-template-columns: 1fr 1fr; }
+  .p-loan-figures strong { font-size: 14px; }
+  .p-installments li { grid-template-columns: 14px 1fr auto; padding: 12px 14px; }
+  .p-installments li .badge { grid-column: 2 / -1; justify-self: start; }
+  .p-inst-amounts { text-align: right; }
+  .portal-footer { flex-direction: column; text-align: center; align-items: center; }
+  .p-toolbar .btn { min-height: 40px; }
+}
+
+/* Estado de cuenta impreso */
+@media print {
+  .portal-header, .portal-footer, .no-print { display: none !important; }
+  .portal, .portal-main { background: #fff; padding: 0; max-width: none; }
+  .print-only { display: block; }
+  .p-print-head { font-size: 12px; margin-bottom: 8px; }
+  [hidden].print-show { display: block !important; }
+  .p-loan-hero, .p-facts, .p-list-section { border-color: #ccc; break-inside: avoid; box-shadow: none; }
+  .p-list-section { margin-top: 10px; }
+  .p-installments li, .p-payments li { break-inside: avoid; padding: 6px 10px; }
+  .p-note { display: none; }
+}

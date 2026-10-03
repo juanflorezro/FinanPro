@@ -27,7 +27,7 @@ export default function Organizations() {
           <SearchInput value={q} onChange={(v) => { setQ(v); setPage(1); }} placeholder="Buscar por nombre o NIT" />
           <Select aria-label="Estado" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} options={Object.fromEntries(Object.entries(ORG_STATUS).map(([k, [t]]) => [k, t]))} placeholder="Todos los estados" />
         </div>
-        {loading ? <Loading /> : error ? <ErrorNote error={error} onRetry={reload} /> : data.items.length === 0 ? (
+        {loading ? <Loading /> : error ? <ErrorNote error={error} onRetry={reload} /> : !data?.items?.length ? (
           <Empty title={search || status ? 'Ninguna organización coincide' : 'Todavía no hay organizaciones'}>
             {!search && !status && 'Aparecen cuando un cliente habilitado entra y crea la suya.'}
           </Empty>

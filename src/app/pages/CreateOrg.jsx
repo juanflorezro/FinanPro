@@ -5,6 +5,7 @@ import { useAppAuth } from '../AppAuth.jsx';
 import { Button, Input, Select, Loading } from '../../components/ui.jsx';
 import { COUNTRIES } from '../../utils/labels.js';
 import { AuthShell } from './Login.jsx';
+import { rules, validate, focusFirstError } from '../../utils/validation.js';
 
 const CURRENCY = { CO: 'COP', MX: 'MXN', PE: 'PEN', EC: 'USD', CL: 'CLP', ES: 'EUR', US: 'USD' };
 
@@ -13,6 +14,7 @@ export default function CreateOrg() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: '', legalName: '', taxId: '', country: 'CO' });
   const [error, setError] = useState('');
+  const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
 
   if (!ready) return <div className="boot"><Loading /></div>;
@@ -35,6 +37,9 @@ export default function CreateOrg() {
 
   async function submit(e) {
     e.preventDefault();
+    const found = validate(form, { name: [rules.required('Escribe el nombre de tu empresa'), rules.minLen(2)] });
+    setErrors(found);
+    if (Object.keys(found).length) { focusFirstError(); return; }
     setBusy(true); setError('');
     try {
       const org = await appApi('/orgs', {
@@ -56,12 +61,12 @@ export default function CreateOrg() {
       <form className="login-form" onSubmit={submit}>
         <h1>Datos de tu empresa</h1>
         <p className="muted">Puedes cambiarlos después en Configuración.</p>
-        <Input label="Nombre comercial" value={form.name} onChange={set('name')} placeholder="Créditos del Caribe" />
+        <Input label="Nombre comercial" required value={form.name} onChange={set('name')} placeholder="Créditos del Caribe" error={errors.name} />
         <Input label="Razón social" value={form.legalName} onChange={set('legalName')} hint="Opcional" />
         <Input label="NIT o documento" value={form.taxId} onChange={set('taxId')} hint="Opcional" />
-        <Select label="País" value={form.country} onChange={set('country')} options={COUNTRIES} hint={`Moneda: ${CURRENCY[form.country] ?? 'USD'}`} />
+        <Select label="País" required value={form.country} onChange={set('country')} options={COUNTRIES} hint={`Moneda: ${CURRENCY[form.country] ?? 'USD'}`} />
         {error && <p className="form-error" role="alert">{error}</p>}
-        <Button type="submit" loading={busy} disabled={form.name.trim().length < 2} className="btn-block">Crear empresa</Button>
+        <Button type="submit" loading={busy} className="btn-block">Crear empresa</Button>
       </form>
     </AuthShell>
   );

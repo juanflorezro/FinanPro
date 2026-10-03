@@ -4,12 +4,45 @@ import { useAppApi } from '../../api/useAppApi.js';
 import { appApi } from '../../api/appClient.js';
 import { useAppAuth } from '../AppAuth.jsx';
 import { useAppAction } from '../useAppAction.js';
-import { PageHeader, Panel, Button, Loading, ErrorNote, Input, DefList, Badge, StatusBadge } from '../../components/ui.jsx';
+import { useToast } from '../../components/Toast.jsx';
+import { PageHeader, Panel, Button, Loading, ErrorNote, Input, Select, DefList, Badge, StatusBadge } from '../../components/ui.jsx';
 import { date, percent } from '../../utils/format.js';
 import { MODALITIES, SUB_STATUS } from '../../utils/labels.js';
 
 const WATERFALL_LABEL = { mora: 'Interés de mora', cargo: 'Cargos', interes: 'Interés', capital: 'Capital' };
-const TABS = [['empresa', 'Empresa'], ['prestamos', 'Préstamos'], ['seguridad', 'Mi seguridad']];
+const TABS = [['empresa', 'Empresa'], ['prestamos', 'Préstamos'], ['portal', 'Portal de clientes'], ['seguridad', 'Mi seguridad']];
+
+function PortalSettings({ data, editable, save, busy }) {
+  const notify = useToast();
+  const url = `${window.location.origin}/p/${data.organization.slug}`;
+  const s = data.settings;
+  const [form, setForm] = useState({ portalEnabled: s.portalEnabled !== false, portalOtpChannel: s.portalOtpChannel ?? 'email' });
+  return (
+    <div className="grid-main">
+      <Panel title="Portal de tus clientes">
+        <p className="panel-intro">Tus deudores consultan aquí sus préstamos, cuotas y pagos con su documento y un código que les llega al correo o al celular. Es solo de consulta: no pueden cambiar nada.</p>
+        <div className="portal-link">
+          <code>{url}</code>
+          <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard?.writeText(url); notify('Enlace copiado'); }}>Copiar</Button>
+          <a className="btn btn-ghost btn-sm" href={url} target="_blank" rel="noreferrer">Abrir</a>
+        </div>
+        <div className="form-grid section-gap">
+          <label className="check span-2"><input type="checkbox" checked={form.portalEnabled} disabled={!editable} onChange={(e) => setForm({ ...form, portalEnabled: e.target.checked })} /> Portal activo</label>
+          <Select label="Enviar el código por" value={form.portalOtpChannel} disabled={!editable} onChange={(e) => setForm({ ...form, portalOtpChannel: e.target.value })}
+            options={{ email: 'Correo electrónico', sms: 'Mensaje de texto (SMS)' }} hint="Si eliges SMS y el servidor no tiene SMS configurado, se usa el correo." className="span-2" />
+        </div>
+        {editable && <div className="panel-foot"><Button loading={busy} onClick={() => save({ settings: form }, 'Portal actualizado')}>Guardar</Button></div>}
+      </Panel>
+      <Panel title="Para que tus clientes puedan entrar">
+        <ul className="hint-list">
+          <li>El deudor debe estar registrado con su documento correcto.</li>
+          <li>Debe tener <strong>correo</strong> (o celular si usas SMS) en su ficha.</li>
+          <li>Compárteles el enlace por WhatsApp o en el recibo.</li>
+        </ul>
+      </Panel>
+    </div>
+  );
+}
 
 function Security() {
   const { user, loadMe } = useAppAuth();
@@ -182,6 +215,7 @@ export default function Settings() {
         </Panel>
       )}
 
+      {tab === 'portal' && <PortalSettings data={data} editable={editable} save={save} busy={busy} />}
       {tab === 'seguridad' && <Security />}
     </>
   );
