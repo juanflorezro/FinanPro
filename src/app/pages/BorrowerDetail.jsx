@@ -22,13 +22,17 @@ export default function BorrowerDetail() {
   const [errors, setErrors] = useState({});
   const { run, busy } = useAppAction();
   const notify = useToast();
+  const [access, setAccess] = useState(null);
+  const [genBusy, setGenBusy] = useState(false);
 
   if (loading) return <Loading />;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
   const { borrower: b, loans } = data;
   const active = org.status === 'activa';
   const portalUrl = `${window.location.origin}/p/${org.slug}`;
-  const portalMsg = `Hola ${b.firstName}, consulta tus préstamos con ${org.name} aquí: ${portalUrl} (ingresa con tu documento).`;
+  const portalMsg = access
+    ? `Hola ${b.firstName}, consulta tus préstamos con ${org.name} aquí: ${portalUrl}\nToca "Ya tengo un código", escribe tu documento y este código: ${access.code} (vence en 1 hora).`
+    : `Hola ${b.firstName}, consulta tus préstamos con ${org.name} aquí: ${portalUrl} (ingresa con tu documento).`;
 
   return (
     <>
@@ -62,8 +66,18 @@ export default function BorrowerDetail() {
         </Panel>
         <div className="stack">
         <Panel title="Portal del cliente">
-          <p className="panel-intro small">{b.email || b.phone ? 'Puede consultar sus préstamos con su documento y un código.' : 'Agrega su correo para que pueda entrar al portal.'}</p>
+          <p className="panel-intro small">{b.email ? 'Puede entrar con su documento; el código le llega al correo.' : 'No tiene correo: genérale un código de acceso y compártelo por WhatsApp.'}</p>
+          {access && (
+            <div className="access-code">
+              <span className="muted small">Código de acceso, vence a las {new Date(access.expiresAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span>
+              <strong>{access.code}</strong>
+            </div>
+          )}
           <div className="row-actions wrap">
+            <Button size="sm" loading={genBusy} onClick={async () => {
+              setGenBusy(true);
+              try { setAccess(await appApi(`/borrowers/${id}/portal-code`, { method: 'POST' })); } catch (e) { notify(e.message, 'bad'); } finally { setGenBusy(false); }
+            }}>{access ? 'Generar otro código' : 'Generar código de acceso'}</Button>
             <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard?.writeText(portalMsg); notify('Mensaje copiado'); }}>Copiar mensaje</Button>
             {b.phone && <a className="btn btn-ghost btn-sm" target="_blank" rel="noreferrer" href={`https://wa.me/${(b.phone.startsWith('57') ? '' : '57') + b.phone.replace(/\D/g, '')}?text=${encodeURIComponent(portalMsg)}`}>Enviar por WhatsApp</a>}
           </div>
