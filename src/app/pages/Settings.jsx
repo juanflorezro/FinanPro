@@ -16,11 +16,11 @@ function PortalSettings({ data, editable, save, busy }) {
   const notify = useToast();
   const url = `${window.location.origin}/p/${data.organization.slug}`;
   const s = data.settings;
-  const [form, setForm] = useState({ portalEnabled: s.portalEnabled !== false, portalOtpChannel: s.portalOtpChannel ?? 'email' });
+  const [form, setForm] = useState({ portalEnabled: s.portalEnabled !== false, portalAccess: s.portalAccess ?? 'documento' });
   return (
     <div className="grid-main">
       <Panel title="Portal de tus clientes">
-        <p className="panel-intro">Tus deudores consultan aquí sus préstamos, cuotas y pagos con su documento y un código que les llega al correo o al celular. Es solo de consulta: no pueden cambiar nada.</p>
+        <p className="panel-intro">Tus deudores consultan aquí sus préstamos, cuotas y pagos con su documento (y, si lo activas, un código que les llega al correo). Es solo de consulta: no pueden cambiar nada.</p>
         <div className="portal-link">
           <code>{url}</code>
           <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard?.writeText(url); notify('Enlace copiado'); }}>Copiar</Button>
@@ -28,15 +28,16 @@ function PortalSettings({ data, editable, save, busy }) {
         </div>
         <div className="form-grid section-gap">
           <label className="check span-2"><input type="checkbox" checked={form.portalEnabled} disabled={!editable} onChange={(e) => setForm({ ...form, portalEnabled: e.target.checked })} /> Portal activo</label>
-          <Select label="Enviar el código por" value={form.portalOtpChannel} disabled={!editable} onChange={(e) => setForm({ ...form, portalOtpChannel: e.target.value })}
-            options={{ email: 'Correo electrónico', sms: 'Mensaje de texto (SMS)' }} hint="Si eliges SMS y el servidor no tiene SMS configurado, se usa el correo." className="span-2" />
+          <Select label="Cómo entran tus clientes" value={form.portalAccess} disabled={!editable} onChange={(e) => setForm({ ...form, portalAccess: e.target.value })} className="span-2"
+            options={{ documento: 'Solo con su documento (más simple)', codigo: 'Documento + código de verificación (más seguro)' }}
+            hint={form.portalAccess === 'documento' ? 'Cualquiera que conozca el documento de un cliente podrá ver sus saldos. Cámbialo a código cuando tus clientes tengan correo registrado.' : 'El código llega al correo del cliente, o se lo generas desde su ficha.'} />
         </div>
         {editable && <div className="panel-foot"><Button loading={busy} onClick={() => save({ settings: form }, 'Portal actualizado')}>Guardar</Button></div>}
       </Panel>
       <Panel title="Para que tus clientes puedan entrar">
         <ul className="hint-list">
           <li>El deudor debe estar registrado con su documento correcto.</li>
-          <li>Debe tener <strong>correo</strong> (o celular si usas SMS) en su ficha.</li>
+          <li>Si usas código, debe tener <strong>correo</strong> en su ficha. Si no tiene, genérale un código desde su ficha y envíaselo por WhatsApp.</li>
           <li>Compárteles el enlace por WhatsApp o en el recibo.</li>
         </ul>
       </Panel>

@@ -38,6 +38,18 @@ export default function PortalLogin() {
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   }
 
+  async function loginWithDoc(e) {
+    e?.preventDefault();
+    const number = doc.docNumber.replace(/[.\s]/g, '');
+    if (!/^[0-9A-Za-z-]{4,20}$/.test(number)) { setError('Escribe tu número de documento sin puntos ni espacios.'); return; }
+    setBusy(true); setError('');
+    try {
+      const r = await portalApi(slug, '/login-doc', { method: 'POST', body: { docType: doc.docType, docNumber: number } });
+      signIn(r.token);
+      navigate(`/p/${slug}/inicio`, { replace: true });
+    } catch (err) { setError(err.message); } finally { setBusy(false); }
+  }
+
   async function verifyWithDoc(value = code) {
     const number = doc.docNumber.replace(/[.\s]/g, '');
     if (!/^[0-9A-Za-z-]{4,20}$/.test(number)) { setError('Escribe tu número de documento sin puntos ni espacios.'); return; }
@@ -74,10 +86,20 @@ export default function PortalLogin() {
       </section>
 
       <div className="portal-card">
-        {step === 'doc' ? (
+        {company.access === 'documento' ? (
+          <form onSubmit={loginWithDoc} className="portal-form" noValidate>
+            <h2>Ingresa con tu documento</h2>
+            <p className="muted">Escribe el documento con el que te registraste en {company.name}.</p>
+            <Select label="Tipo de documento" required value={doc.docType} onChange={(e) => setDoc({ ...doc, docType: e.target.value })} options={DOCS} />
+            <Input label="Número de documento" required inputMode="numeric" autoComplete="off" value={doc.docNumber}
+              onChange={(e) => setDoc({ ...doc, docNumber: e.target.value })} placeholder="Ej. 1002442323" hint="Sin puntos ni espacios" />
+            {error && <p className="form-error" role="alert">{error}</p>}
+            <Button type="submit" loading={busy} className="btn-block">Ver mis préstamos</Button>
+          </form>
+        ) : step === 'doc' ? (
           <form onSubmit={requestCode} className="portal-form" noValidate>
             <h2>Ingresa con tu documento</h2>
-            <p className="muted">Te enviaremos un código de 6 dígitos al correo o celular que registraste con {company.name}.</p>
+            <p className="muted">Te enviaremos un código de 6 dígitos al correo que registraste con {company.name}.</p>
             <Select label="Tipo de documento" required value={doc.docType} onChange={(e) => setDoc({ ...doc, docType: e.target.value })} options={DOCS} />
             <Input label="Número de documento" required inputMode="numeric" autoComplete="off" value={doc.docNumber}
               onChange={(e) => setDoc({ ...doc, docNumber: e.target.value })} placeholder="Ej. 1002442323" hint="Sin puntos ni espacios" />
