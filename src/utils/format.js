@@ -21,9 +21,10 @@ const shortFmt = new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'shor
 export const date = (d) => {
   if (!d) return '—';
   const x = new Date(d);
+  if (Number.isNaN(x.getTime())) return '—';
   return (x.getFullYear() === new Date().getFullYear() ? shortFmt : dateFmt).format(x);
 };
-export const dateTime = (d) => (d ? dateTimeFmt.format(new Date(d)) : '—');
+export const dateTime = (d) => (d && !Number.isNaN(new Date(d).getTime()) ? dateTimeFmt.format(new Date(d)) : '—');
 export const inputDate = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '');
 
 export function daysFromNow(d) {

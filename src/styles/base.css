@@ -70,7 +70,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border: 1px solid transparent; border-radius: var(--r-sm);
   font-weight: 600; font-size: 14px; white-space: nowrap;
   cursor: pointer; transition: background .15s, border-color .15s, color .15s;
+  text-decoration: none;
 }
+a.btn-primary, a.btn-primary:hover { color: #fff; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .btn-sm { height: 30px; padding: 0 10px; font-size: 13px; }
 .btn-block { width: 100%; height: 44px; }

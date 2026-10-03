@@ -72,3 +72,20 @@ export const ACTIONS = {
   'support.refresh_loan': 'Recalculó un préstamo (soporte)',
   'admin.update': 'Editó un administrador',
 };
+
+export const AMORTIZATION = {
+  frances: ['Cuota fija', 'Todas las cuotas iguales. Al inicio se paga más interés y al final más capital.'],
+  aleman: ['Capital fijo', 'El abono a capital es igual en cada cuota, así que la cuota baja con el tiempo.'],
+  interes_simple: ['Interés simple', 'El interés se calcula siempre sobre el capital inicial. Cuotas iguales.'],
+  solo_interes: ['Solo interés', 'Paga interés en cada cuota y todo el capital en la última.'],
+  abonos_libres: ['Abonos libres', 'Paga el interés de cada período y abona a capital cuando pueda. Sin número de cuotas.'],
+};
+export const RATE_BASIS = { mensual: 'mensual', anual: 'anual', quincenal: 'quincenal', semanal: 'semanal', diaria: 'diaria' };
+export const FREQUENCY = { mensual: 'Mensual', quincenal: 'Quincenal', semanal: 'Semanal', diaria: 'Diaria' };
+export const PAYMENT_METHODS_APP = { efectivo: 'Efectivo', transferencia: 'Transferencia', nequi: 'Nequi', daviplata: 'Daviplata', pasarela: 'Pasarela de pago', otro: 'Otro' };
+export const RATE_CHECK = {
+  no_aplica: ['Tasa libre', 'neutral'],
+  dentro: ['Dentro del tope legal', 'ok'],
+  excede_confirmado: ['Supera el tope, confirmado', 'warn'],
+  sin_tope_cargado: ['Sin tope cargado', 'warn'],
+};
