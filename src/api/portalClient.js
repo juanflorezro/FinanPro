@@ -7,9 +7,11 @@ const key = (slug) => `finanpro.portal.${slug}`;
 export const getPortalToken = (slug) => { try { return sessionStorage.getItem(key(slug)); } catch { return null; } };
 export const setPortalToken = (slug, token) => { try { token ? sessionStorage.setItem(key(slug), token) : sessionStorage.removeItem(key(slug)); } catch { /* sin almacenamiento */ } };
 
+// slug null = portal global (/api/portal-global)
 export async function portalApi(slug, path = '', { method = 'GET', body } = {}) {
-  const token = getPortalToken(slug);
-  const res = await fetch(`${BASE}/portal/${encodeURIComponent(slug)}${path}`, {
+  const token = getPortalToken(slug ?? '__global');
+  const url = slug ? `${BASE}/portal/${encodeURIComponent(slug)}${path}` : `${BASE}/portal-global${path}`;
+  const res = await fetch(url, {
     method,
     cache: 'no-store',
     headers: { ...(body && { 'Content-Type': 'application/json' }), ...(token && { Authorization: `Bearer ${token}` }) },
@@ -18,7 +20,7 @@ export async function portalApi(slug, path = '', { method = 'GET', body } = {}) 
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) {
-    if (res.status === 401) setPortalToken(slug, null);
+    if (res.status === 401) setPortalToken(slug ?? '__global', null);
     throw new ApiError(res.status, data);
   }
   return data;

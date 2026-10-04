@@ -27,8 +27,8 @@ export default function BorrowerDetail() {
   if (error) return <ErrorNote error={error} onRetry={reload} />;
   const { borrower: b, loans } = data;
   const active = org.status === 'activa';
-  const portalUrl = `${window.location.origin}/p/${org.slug}`;
-  const portalMsg = `Hola ${b.firstName}, consulta tus préstamos con ${org.name} aquí: ${portalUrl} (entra con Google usando tu correo, o con tu documento y el código que te llega al correo).`;
+  const portalUrl = `${window.location.origin}/portal`;
+  const portalMsg = `Hola ${b.firstName}, consulta tus préstamos con ${org.name} aquí: ${portalUrl} (entra con Google o con un código usando tu correo ${b.email ?? ''}). Ahí ves todos tus préstamos.`;
 
   return (
     <>

@@ -46,6 +46,9 @@ import PortalLayout from './portal/PortalLayout.jsx';
 import PortalLogin from './portal/pages/PortalLogin.jsx';
 import PortalHome from './portal/pages/PortalHome.jsx';
 import PortalLoan from './portal/pages/PortalLoan.jsx';
+import GlobalPortalLayout from './portal/GlobalPortalLayout.jsx';
+import GlobalLogin from './portal/pages/GlobalLogin.jsx';
+import GlobalHome from './portal/pages/GlobalHome.jsx';
 
 const AdminScope = () => <AdminAuthProvider><Outlet /></AdminAuthProvider>;
 const AppScope = () => <AppAuthProvider><Outlet /></AppAuthProvider>;
@@ -69,6 +72,13 @@ createRoot(document.getElementById('root')).render(
               <Route path="administradores" element={<Admins />} />
               <Route path="soporte" element={<SupportDesk />} />
             </Route>
+          </Route>
+
+          {/* Portal global del deudor: todas sus deudas en todas las empresas */}
+          <Route path="/portal" element={<GlobalPortalLayout />}>
+            <Route index element={<GlobalLogin />} />
+            <Route path="inicio" element={<GlobalHome />} />
+            <Route path="prestamo/:orgId/:id" element={<PortalLoan />} />
           </Route>
 
           {/* Portal público del deudor: /p/slug-de-la-empresa */}

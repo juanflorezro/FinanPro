@@ -133,3 +133,33 @@
   .p-installments li, .p-payments li { break-inside: avoid; padding: 6px 10px; }
   .p-note { display: none; }
 }
+
+/* ===== Portal global: deudas agrupadas por empresa ===== */
+.p-summary-main strong + strong { margin-top: -2px; }
+.g-companies { display: grid; gap: 14px; margin-bottom: 18px; }
+.g-company { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+.g-company-head { display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--line-2); background: #fafbfa; }
+.g-company-head img { width: 44px; height: 44px; border-radius: 12px; object-fit: cover; }
+.g-company-head .portal-mark { width: 44px; height: 44px; }
+.g-company-head > div:nth-child(2) { flex: 1; display: grid; gap: 2px; min-width: 0; }
+.g-company-head > div:nth-child(2) strong { font-size: 16.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-company-head small { color: var(--muted); font-size: 13px; }
+.g-company-total { display: grid; text-align: right; }
+.g-company-total span { font-size: 12px; color: var(--muted); }
+.g-company-total strong { font-size: 20px; font-stretch: 85%; }
+.g-loans { list-style: none; margin: 0; padding: 0; }
+.g-loans li + li { border-top: 1px solid var(--line-2); }
+.g-loan { display: flex; justify-content: space-between; gap: 16px; padding: 14px 18px; color: var(--ink); text-decoration: none; }
+.g-loan:hover { background: #f7faf8; color: var(--ink); }
+.g-loan-main { flex: 1; display: grid; gap: 6px; min-width: 0; }
+.g-loan-main small, .g-loan-side small { color: var(--muted); font-size: 12.5px; }
+.g-loan-main .p-progress { max-width: 320px; }
+.g-loan-side { display: grid; justify-items: end; gap: 4px; text-align: right; }
+.g-loan-side strong { font-size: 16px; }
+@media (max-width: 820px) {
+  .g-company-head { flex-wrap: wrap; }
+  .g-company-total { width: 100%; text-align: left; grid-auto-flow: column; justify-content: space-between; align-items: baseline; padding-top: 4px; border-top: 1px dashed var(--line-2); }
+  .g-loan { flex-direction: column; gap: 8px; }
+  .g-loan-side { justify-items: start; text-align: left; grid-auto-flow: column; align-items: center; justify-content: space-between; }
+  .g-loan-main .p-progress { max-width: none; }
+}

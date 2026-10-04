@@ -7,15 +7,15 @@ import { LOAN_STATUS, INSTALLMENT_STATUS, AMORTIZATION, FREQUENCY, PAYMENT_METHO
 import { Progress, paidPercent } from './PortalHome.jsx';
 
 export default function PortalLoan() {
-  const { id } = useParams();
-  const { slug, token, call } = usePortal();
+  const { id, orgId } = useParams();
+  const { basePath, token, call, loanPath } = usePortal();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [tab, setTab] = useState('cuotas');
-  const load = useCallback(() => call(`/loans/${id}`).then(setData).catch(setError), [call, id]);
+  const load = useCallback(() => call(loanPath(id, orgId)).then(setData).catch(setError), [call, loanPath, id, orgId]);
   useEffect(() => { if (token) load(); }, [token, load]);
 
-  if (!token) return <Navigate to={`/p/${slug}`} replace />;
+  if (!token) return <Navigate to={basePath} replace />;
   if (error) return <ErrorNote error={error} onRetry={load} />;
   if (!data) return <Loading />;
 
@@ -30,7 +30,7 @@ export default function PortalLoan() {
   return (
     <div className="p-loan-page">
       <div className="p-toolbar no-print">
-        <Link to={`/p/${slug}/inicio`} className="back">Mis préstamos</Link>
+        <Link to={`${basePath}/inicio`} className="back">Mis préstamos</Link>
         <button type="button" className="btn btn-secondary btn-sm" onClick={() => window.print()}>Imprimir estado de cuenta</button>
       </div>
 

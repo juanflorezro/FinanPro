@@ -21,13 +21,20 @@ function PortalSettings({ data, editable, save, busy }) {
     <div className="grid-main">
       <Panel title="Portal de tus clientes">
         <p className="panel-intro">Tus deudores consultan aquí sus préstamos, cuotas y pagos entrando con Google o con un código que les llega al correo registrado. Es solo de consulta: no pueden cambiar nada.</p>
+        <p className="field-hint">Portal global (recomendado): el cliente ve lo que debe en todas las empresas de FinanPro con un solo ingreso.</p>
+        <div className="portal-link">
+          <code>{`${window.location.origin}/portal`}</code>
+          <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}/portal`); notify('Enlace copiado'); }}>Copiar</Button>
+          <a className="btn btn-ghost btn-sm" href="/portal" target="_blank" rel="noreferrer">Abrir</a>
+        </div>
+        <p className="field-hint section-gap">Portal solo de tu empresa:</p>
         <div className="portal-link">
           <code>{url}</code>
           <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard?.writeText(url); notify('Enlace copiado'); }}>Copiar</Button>
           <a className="btn btn-ghost btn-sm" href={url} target="_blank" rel="noreferrer">Abrir</a>
         </div>
         <div className="form-grid section-gap">
-          <label className="check span-2"><input type="checkbox" checked={form.portalEnabled} disabled={!editable} onChange={(e) => setForm({ ...form, portalEnabled: e.target.checked })} /> Portal activo</label>
+          <label className="check span-2"><input type="checkbox" checked={form.portalEnabled} disabled={!editable} onChange={(e) => setForm({ ...form, portalEnabled: e.target.checked })} /> Mostrar mis préstamos en el portal (global y de la empresa)</label>
         </div>
         {editable && <div className="panel-foot"><Button loading={busy} onClick={() => save({ settings: form }, 'Portal actualizado')}>Guardar</Button></div>}
       </Panel>

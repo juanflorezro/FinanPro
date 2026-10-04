@@ -4,7 +4,7 @@ import { portalApi, getPortalToken, setPortalToken } from '../api/portalClient.j
 import { Loading } from '../components/ui.jsx';
 import { ErrorBoundary } from '../components/ErrorBoundary.jsx';
 
-const PortalContext = createContext(null);
+export const PortalContext = createContext(null);
 export const usePortal = () => useContext(PortalContext);
 
 export default function PortalLayout() {
@@ -48,7 +48,7 @@ export default function PortalLayout() {
 
   const initials = company.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
   return (
-    <PortalContext.Provider value={{ slug, company, token, signIn, signOut, call }}>
+    <PortalContext.Provider value={{ slug, company, token, signIn, signOut, call, basePath: `/p/${slug}`, loanPath: (id) => `/loans/${id}` }}>
       <div className="portal">
         <header className="portal-header">
           <Link to={token ? `/p/${slug}/inicio` : `/p/${slug}`} className="portal-brand">
