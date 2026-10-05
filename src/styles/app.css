@@ -311,3 +311,6 @@
 .payoff .sub { font-size: 13px; color: var(--muted); padding-left: 8px; }
 .tone-ok { color: var(--ok); }
 @media (max-width: 768px) { .app-shell .range-inline { width: 100%; } .app-shell .range-inline .field { flex: 1; } }
+.pay-tag { display: block; font-weight: 600; color: var(--pine-700); margin-bottom: 2px; }
+.pay-breakdown { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.ledger-compact .ledger-cells { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }

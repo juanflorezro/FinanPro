@@ -19,6 +19,29 @@ const PAY_MODES = [
   { id: 'capital', label: 'Abono a capital', help: 'Baja la cuota o el plazo' },
   { id: 'liquidacion', label: 'Pago total', help: 'Cancela el préstamo hoy' },
 ];
+const CONCEPTS = {
+  todo: { label: 'Todo lo pendiente', comps: [] },
+  interes: { label: 'Solo intereses', comps: ['interes'] },
+  mora: { label: 'Solo mora', comps: ['mora'] },
+  interes_mora: { label: 'Intereses y mora', comps: ['mora', 'interes'] },
+};
+const COMP_PENDING = {
+  mora: (i) => i.lateInterestAccrued - i.lateInterestPaid,
+  cargo: (i) => i.feesDue - i.feesPaid,
+  interes: (i) => i.interestDue - i.interestPaid,
+  capital: (i) => i.principalDue - i.principalPaid,
+};
+const COMP_NAME = { interes: 'interés', mora: 'mora', cargo: 'cargos', capital: 'capital' };
+const EFFECT = { reducir_cuota: 'reduce la cuota', reducir_plazo: 'reduce el plazo' };
+/** Cómo se aplicó el pago, para que se distinga un abono extraordinario de un pago de cuota. */
+function modeLabel(p) {
+  if (p.isReversal) return null;
+  if (p.applyTo === 'capital' || (!p.applyTo && p.triggeredReschedule)) return `Abono extraordinario a capital${p.capitalEffect ? `, ${EFFECT[p.capitalEffect]}` : ''}`;
+  if (p.applyTo === 'liquidacion') return 'Pago total';
+  if (p.applyTo === 'intereses') return 'Solo intereses';
+  if (p.applyTo === 'cuotas') return `Cuota${p.targetNumbers?.length > 1 ? 's' : ''} ${(p.targetNumbers ?? []).join(', ')}${p.components?.length ? `, solo ${p.components.map((c) => COMP_NAME[c]).join(' y ')}` : ''}`;
+  return null;
+}
 const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
 export default function LoanDetail() {
@@ -43,6 +66,19 @@ export default function LoanDetail() {
   const free = l.amortization === 'abonos_libres';
   const exigible = installments.filter((i) => new Date(i.dueDate) <= new Date() && i.status !== 'pagada').reduce((a, i) => a + pendingOf(i), 0);
   const close = () => { setModal(null); setErrors({}); };
+  // Totales del plan vigente: intereses de todas las cuotas y lo que falta por pagar (capital + interés + mora + cargos)
+  const planInst = installments.filter((i) => !['anulada', 'condonada'].includes(i.status));
+  const planTotals = {
+    interest: planInst.reduce((a, i) => a + i.interestDue, 0),
+    interestPending: planInst.reduce((a, i) => a + Math.max(i.interestDue - i.interestPaid, 0), 0),
+    remaining: planInst.filter((i) => i.status !== 'pagada').reduce((a, i) => a + pendingOf(i), 0)
+      + Math.max(l.balancePrincipal - planInst.filter((i) => i.status !== 'pagada').reduce((a, i) => a + Math.max(i.principalDue - i.principalPaid, 0), 0), 0),
+  };
+  // Totales pagados por concepto (los reversos restan porque vienen en negativo)
+  const paidTotals = payments.reduce((t, p) => ({
+    principal: t.principal + (p.appliedPrincipal ?? 0), interest: t.interest + (p.appliedInterest ?? 0),
+    late: t.late + (p.appliedLateInterest ?? 0), credit: t.credit + (p.unappliedAmount ?? 0),
+  }), { principal: 0, interest: 0, late: 0, credit: 0 });
   const done = async (fn, msg) => { const r = await run(fn, msg); if (r.ok) { close(); reload(); } return r; };
 
   const openInstallments = installments.filter((i) => !['pagada', 'anulada', 'condonada'].includes(i.status)).sort((a, b) => a.number - b.number);
@@ -66,14 +102,19 @@ export default function LoanDetail() {
     setErrors({});
     const next = { ...form, applyTo: mode };
     if (mode === 'intereses') next.amount = pesosText(interestPayable);
-    if (mode === 'cuotas') { next.targets = dueNow.length ? dueNow.map((i) => i.number) : nextOpen ? [nextOpen.number] : []; next.amount = pesosText(openInstallments.filter((i) => next.targets.includes(i.number)).reduce((a, i) => a + pendingOf(i), 0)); }
+    if (mode === 'cuotas') { next.concept = next.concept ?? 'todo'; next.targets = dueNow.length ? dueNow.map((i) => i.number) : nextOpen ? [nextOpen.number] : []; next.amount = pesosText(amountFor(next.targets, next.concept)); }
     if (mode === 'automatico' || mode === 'capital') next.amount = '';
     setForm(next);
     if (mode === 'liquidacion') loadPayoff(form.paidAt);
   };
+  const amountFor = (targets, concept) => {
+    const comps = CONCEPTS[concept ?? 'todo'].comps;
+    return openInstallments.filter((i) => targets.includes(i.number))
+      .reduce((a, i) => a + (comps.length ? comps.reduce((x, c) => x + Math.max(COMP_PENDING[c](i), 0), 0) : pendingOf(i)), 0);
+  };
   const toggleTarget = (n) => {
     const targets = (form.targets ?? []).includes(n) ? form.targets.filter((x) => x !== n) : [...(form.targets ?? []), n].sort((a, b) => a - b);
-    setForm({ ...form, targets, amount: pesosText(openInstallments.filter((i) => targets.includes(i.number)).reduce((a, i) => a + pendingOf(i), 0)) });
+    setForm({ ...form, targets, amount: pesosText(amountFor(targets, form.concept)) });
   };
 
   return (
@@ -98,6 +139,13 @@ export default function LoanDetail() {
           <div><dt>Vencido por pagar</dt><dd className={`dd-money ${exigible ? 'tone-bad' : ''}`}>{money(exigible, cur)}</dd></div>
           <div><dt>Mora acumulada</dt><dd className="dd-money">{money(l.balanceLateInterest, cur)}</dd></div>
           <div><dt>Total pagado</dt><dd className="dd-money">{money(l.totalPaid, cur)}</dd></div>
+          <div><dt>Saldo total por pagar</dt><dd className="dd-money">{money(planTotals.remaining, cur)}</dd></div>
+          <div><dt>Intereses totales</dt><dd className="dd-money">{money(planTotals.interest, cur)}</dd></div>
+          <div><dt>Intereses pendientes</dt><dd className="dd-money">{money(planTotals.interestPending, cur)}</dd></div>
+          <div><dt>Capital pagado</dt><dd className="dd-money">{money(paidTotals.principal, cur)}</dd></div>
+          <div><dt>Intereses pagados</dt><dd className="dd-money">{money(paidTotals.interest, cur)}</dd></div>
+          {paidTotals.late > 0 && <div><dt>Mora pagada</dt><dd className="dd-money">{money(paidTotals.late, cur)}</dd></div>}
+          {paidTotals.credit > 0 && <div><dt>Saldo a favor</dt><dd className="dd-money">{money(paidTotals.credit, cur)}</dd></div>}
           <div><dt>Próxima cuota</dt><dd className="dd-small">{l.nextDueDate ? <>{date(l.nextDueDate)}<br />{money(l.nextDueAmount, cur)}</> : '—'}</dd></div>
         </dl>
       </section>
@@ -137,7 +185,7 @@ export default function LoanDetail() {
                     <tr key={p._id}>
                       <td>{p.receiptNumber}<span className="cell-sub">{PAYMENT_METHODS_APP[p.method]}</span></td>
                       <td className="nowrap">{dateTime(p.paidAt)}</td>
-                      <td className="small">{[
+                      <td className="small">{modeLabel(p) && <strong className="pay-tag">{modeLabel(p)}</strong>}{[
                         p.appliedLateInterest && `Mora ${money(p.appliedLateInterest, cur)}`,
                         p.appliedInterest && `Interés ${money(p.appliedInterest, cur)}`,
                         p.appliedPrincipal && `Capital ${money(p.appliedPrincipal, cur)}`,
@@ -196,7 +244,7 @@ export default function LoanDetail() {
                 ...(form.reference && { externalReference: form.reference }), ...(form.notes && { notes: form.notes }),
                 applyTo: form.applyTo,
                 ...(form.applyTo === 'automatico' && { excessMode: form.excessMode }),
-                ...(form.applyTo === 'cuotas' && { targetNumbers: form.targets }),
+                ...(form.applyTo === 'cuotas' && { targetNumbers: form.targets, ...(CONCEPTS[form.concept ?? 'todo'].comps.length && { components: CONCEPTS[form.concept].comps }) }),
                 ...(form.applyTo === 'capital' && { capitalEffect: form.capitalEffect }),
               },
             }), form.applyTo === 'liquidacion' ? 'Préstamo pagado en su totalidad' : 'Pago registrado');
@@ -212,16 +260,27 @@ export default function LoanDetail() {
         </div>
 
         {form.applyTo === 'cuotas' && (
-          <div className="pay-installments">
-            {openInstallments.map((i) => (
-              <label key={i._id} className={`check ${(form.targets ?? []).includes(i.number) ? 'on' : ''}`}>
-                <input type="checkbox" checked={(form.targets ?? []).includes(i.number)} onChange={() => toggleTarget(i.number)} />
-                <span>Cuota {i.number} <span className="muted small">vence {date(i.dueDate)}</span></span>
-                <strong>{money(pendingOf(i), cur)}</strong>
-              </label>
-            ))}
-            {errors.targets && <p className="field-error">{errors.targets}</p>}
-          </div>
+          <>
+            <Select label="Qué pagar de esas cuotas" value={form.concept ?? 'todo'} onChange={(e) => setForm({ ...form, concept: e.target.value, amount: pesosText(amountFor(form.targets ?? [], e.target.value)) })}
+              options={Object.fromEntries(Object.entries(CONCEPTS).map(([k, v]) => [k, v.label]))}
+              hint="Si el valor no alcanza, se cubre primero la cuota más antigua. Ej.: $50.000 de interés entre el período 1 y el 3." />
+            <div className="pay-installments section-gap">
+              {openInstallments.map((i) => {
+                const comps = CONCEPTS[form.concept ?? 'todo'].comps;
+                const amount = comps.length ? comps.reduce((x, c) => x + Math.max(COMP_PENDING[c](i), 0), 0) : pendingOf(i);
+                return (
+                  <label key={i._id} className={`check ${(form.targets ?? []).includes(i.number) ? 'on' : ''}`}>
+                    <input type="checkbox" checked={(form.targets ?? []).includes(i.number)} onChange={() => toggleTarget(i.number)} />
+                    <span>Cuota {i.number} <span className="muted small">vence {date(i.dueDate)}</span>
+                      <span className="pay-breakdown">Interés {money(Math.max(COMP_PENDING.interes(i), 0), cur)}{COMP_PENDING.mora(i) > 0 && ` · Mora ${money(COMP_PENDING.mora(i), cur)}`} · Capital {money(Math.max(COMP_PENDING.capital(i), 0), cur)}</span>
+                    </span>
+                    <strong>{money(amount, cur)}</strong>
+                  </label>
+                );
+              })}
+              {errors.targets && <p className="field-error">{errors.targets}</p>}
+            </div>
+          </>
         )}
         {form.applyTo === 'intereses' && <p className="notice">Intereses y mora que se pueden pagar hoy: <strong>{money(interestPayable, cur)}</strong>. El capital no baja con este abono.</p>}
         {form.applyTo === 'capital' && (exigible > 0
