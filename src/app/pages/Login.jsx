@@ -9,10 +9,11 @@ import { Guilloche } from '../../components/Guilloche.jsx';
 
 /** A dónde volver después de iniciar sesión (lo guarda, por ejemplo, la autorización OAuth). */
 export const AFTER_LOGIN_KEY = 'finanpro.afterLogin';
+// Solo se LEE aquí (no se borra): al iniciar sesión hay dos redirecciones seguidas y ambas deben ir
+// al mismo lugar. La página de destino (por ejemplo la autorización OAuth) la borra al abrir.
 function takeAfterLogin() {
   try {
     const to = sessionStorage.getItem(AFTER_LOGIN_KEY);
-    sessionStorage.removeItem(AFTER_LOGIN_KEY);
     return to && to.startsWith('/') ? to : '/';
   } catch { return '/'; }
 }

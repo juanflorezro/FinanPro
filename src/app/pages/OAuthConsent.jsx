@@ -22,6 +22,9 @@ export default function OAuthConsent() {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
 
+  // Ya llegamos: se borra el "volver aquí después del login"
+  useEffect(() => { if (me) { try { sessionStorage.removeItem(AFTER_LOGIN_KEY); } catch { /* nada */ } } }, [me]);
+
   useEffect(() => {
     if (!me || !request.client_id) return;
     appApi(`/oauth/client?client_id=${encodeURIComponent(request.client_id)}`).then(setClient).catch((e) => setError(e.message));
