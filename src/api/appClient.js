@@ -7,7 +7,14 @@ let accessToken = null;
 let refreshing = null;
 let onExpired = () => {};
 
-export const setAppToken = (t) => { accessToken = t; };
+// Respaldo del refresh token para navegadores que bloquean la cookie (iPhone/Safari, bloqueo de terceros).
+// La cookie httpOnly sigue siendo la vía principal; esto solo evita que recargar cierre la sesión.
+const RT_KEY = 'finanpro.session';
+const getStoredRt = () => { try { return localStorage.getItem(RT_KEY); } catch { return null; } };
+const setStoredRt = (t) => { try { t ? localStorage.setItem(RT_KEY, t) : localStorage.removeItem(RT_KEY); } catch { /* sin almacenamiento */ } };
+export const hasStoredSession = () => Boolean(getStoredRt());
+
+export const setAppToken = (t) => { accessToken = t; if (!t) setStoredRt(null); };
 export const onAppSessionExpired = (fn) => { onExpired = fn; };
 export const getOrgId = () => { try { return localStorage.getItem(ORG_KEY); } catch { return null; } };
 export const setOrgId = (id) => { try { id ? localStorage.setItem(ORG_KEY, id) : localStorage.removeItem(ORG_KEY); } catch { /* sin almacenamiento */ } };
@@ -18,11 +25,17 @@ async function parse(res) {
 }
 
 export function refreshAppSession() {
-  refreshing ??= fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'include' })
+  const stored = getStoredRt();
+  refreshing ??= fetch(`${BASE}/auth/refresh`, {
+    method: 'POST', credentials: 'include', cache: 'no-store',
+    headers: { 'Content-Type': 'application/json', 'X-Session-Mode': 'token' },
+    body: JSON.stringify(stored ? { refreshToken: stored } : {}),
+  })
     .then(async (res) => {
       const body = await parse(res);
-      if (!res.ok) throw new ApiError(res.status, body);
+      if (!res.ok) { if (res.status === 401) setStoredRt(null); throw new ApiError(res.status, body); }
       accessToken = body.accessToken;
+      if (body.refreshToken) setStoredRt(body.refreshToken);
       return body;
     })
     .finally(() => { refreshing = null; });
@@ -36,6 +49,7 @@ export async function appApi(path, { method = 'GET', body, query, headers, retry
     if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
   });
   const orgId = getOrgId();
+  if (path === '/auth/logout') body = { ...(body ?? {}), refreshToken: getStoredRt() };
   const res = await fetch(url, {
     method,
     credentials: 'include',
@@ -44,6 +58,7 @@ export async function appApi(path, { method = 'GET', body, query, headers, retry
       ...(body !== undefined && { 'Content-Type': 'application/json' }),
       ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
       ...(orgId && { 'X-Org-Id': orgId }),
+      'X-Session-Mode': 'token',
       ...headers,
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -61,6 +76,7 @@ export async function appApi(path, { method = 'GET', body, query, headers, retry
   }
   const data = await parse(res);
   if (!res.ok) throw new ApiError(res.status, data);
+  if (path.startsWith('/auth/') && data?.refreshToken) setStoredRt(data.refreshToken); // login, Google, código
   return data;
 }
 
