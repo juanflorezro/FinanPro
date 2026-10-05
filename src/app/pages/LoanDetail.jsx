@@ -15,7 +15,7 @@ const pendingOf = (i) => Math.max(0, i.principalDue + i.interestDue + i.feesDue 
 const PAY_MODES = [
   { id: 'automatico', label: 'Automático', help: 'Lo vencido primero: mora, interés y capital' },
   { id: 'cuotas', label: 'Pagar cuotas', help: 'Elige qué cuotas paga' },
-  { id: 'intereses', label: 'Solo intereses', help: 'Mora e interés; el capital no baja' },
+  { id: 'intereses', label: 'Solo intereses', help: 'Mora e interés, también adelantado; el capital no baja' },
   { id: 'capital', label: 'Abono a capital', help: 'Baja la cuota o el plazo' },
   { id: 'liquidacion', label: 'Pago total', help: 'Cancela el préstamo hoy' },
 ];
@@ -88,6 +88,7 @@ export default function LoanDetail() {
   const interestPayable = dueNow.reduce((a, i) => a + (i.lateInterestAccrued - i.lateInterestPaid) + (i.interestDue - i.interestPaid), 0)
     + (nextOpen ? (nextOpen.lateInterestAccrued - nextOpen.lateInterestPaid) + (nextOpen.interestDue - nextOpen.interestPaid) : 0);
   const pesosText = (c) => String(Math.round(c) / 100);
+  const interestMax = openInstallments.reduce((a, i) => a + Math.max(i.lateInterestAccrued - i.lateInterestPaid, 0) + Math.max(i.interestDue - i.interestPaid, 0), 0);
 
   const openPayment = () => {
     setPayoff(null);
@@ -165,7 +166,11 @@ export default function LoanDetail() {
                         <td className="num">{money(i.principalDue, cur)}</td>
                         <td className="num">{money(i.interestDue, cur)}</td>
                         <td className="num">{money(i.lateInterestAccrued, cur)}</td>
-                        <td className="num">{money(i.principalPaid + i.interestPaid + i.feesPaid + i.lateInterestPaid, cur)}</td>
+                        <td className="num">{money(i.principalPaid + i.interestPaid + i.feesPaid + i.lateInterestPaid, cur)}
+                          {(i.interestPaid > 0 || i.principalPaid > 0 || i.lateInterestPaid > 0) && (
+                            <span className="cell-sub">{[i.interestPaid > 0 && `Int. ${money(i.interestPaid, cur)}`, i.lateInterestPaid > 0 && `Mora ${money(i.lateInterestPaid, cur)}`, i.principalPaid > 0 && `Cap. ${money(i.principalPaid, cur)}`].filter(Boolean).join(' · ')}</span>
+                          )}
+                        </td>
                         <td className="num"><strong>{money(pendingOf(i), cur)}</strong></td>
                         <td><StatusBadge map={INSTALLMENT_STATUS} value={i.status} /></td>
                       </tr>
@@ -282,7 +287,9 @@ export default function LoanDetail() {
             </div>
           </>
         )}
-        {form.applyTo === 'intereses' && <p className="notice">Intereses y mora que se pueden pagar hoy: <strong>{money(interestPayable, cur)}</strong>. El capital no baja con este abono.</p>}
+        {form.applyTo === 'intereses' && (
+          <p className="notice">Vencido y período en curso: <strong>{money(interestPayable, cur)}</strong>. Si pagas más, se adelantan los intereses de los períodos siguientes en orden, hasta <strong>{money(interestMax, cur)}</strong> (todos los intereses y la mora pendientes). El capital no baja con este abono.</p>
+        )}
         {form.applyTo === 'capital' && (exigible > 0
           ? <p className="notice notice-bad">Para abonar a capital el préstamo debe estar al día. Primero registra el pago de lo vencido ({money(exigible, cur)}).</p>
           : (
