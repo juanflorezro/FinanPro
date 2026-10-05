@@ -137,7 +137,7 @@ export default function Login() {
           <button type="button" role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'on' : ''} onClick={() => { setMode('login'); setError(''); }}>Entrar</button>
           <button type="button" role="tab" aria-selected={mode === 'register'} className={mode === 'register' ? 'on' : ''} onClick={() => { setMode('register'); setError(''); }}>Crear cuenta</button>
         </div>
-        <GoogleButton onCredential={onGoogle} text={mode === 'login' ? 'signin_with' : 'signup_with'} />
+        <GoogleButton onCredential={onGoogle} text={mode === 'login' ? 'signin_with' : 'signup_with'} oneTap={mode === 'login'} />
         <div className="divider"><span>o con tu correo</span></div>
         {mode === 'register' && <Input label="Tu nombre" required value={form.name} onChange={set('name')} autoComplete="name" />}
         <Input label="Correo" required type="email" autoComplete="username" value={form.email} onChange={set('email')} />

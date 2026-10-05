@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAppApi } from '../../api/useAppApi.js';
 import { appApi } from '../../api/appClient.js';
@@ -32,6 +32,54 @@ const COMP_PENDING = {
   capital: (i) => i.principalDue - i.principalPaid,
 };
 const COMP_NAME = { interes: 'interés', mora: 'mora', cargo: 'cargos', capital: 'capital' };
+const STATUS_TXT = { al_dia: 'Al día', en_mora: 'En mora', pagado: 'Pagado', desembolsado: 'Desembolsado', reestructurado: 'Reestructurado' };
+
+/** Simulación del pago: cómo se aplica y cómo queda el préstamo, antes de guardar. */
+function PaymentPreview({ sim, cur, before }) {
+  if (!sim.loading && !sim.data && !sim.error) return null;
+  if (sim.error) return <p className="notice notice-bad" role="alert"><strong>No se puede registrar así:</strong> {sim.error}</p>;
+  if (!sim.data) return <div className="sim"><p className="muted small">Calculando cómo queda…</p></div>;
+  const d = sim.data;
+  const a = d.loanAfter;
+  const parts = [['Mora', d.totals.mora], ['Cargos', d.totals.cargo], ['Interés', d.totals.interes], ['Capital', d.totals.capital], ['Saldo a favor', d.unapplied]].filter(([, v]) => v > 0);
+  return (
+    <div className={`sim ${sim.loading ? 'is-refreshing' : ''}`} aria-live="polite">
+      <p className="sim-title">Así quedaría <span className="muted small">(simulación, todavía no se guarda)</span></p>
+      <div className="sim-grid">
+        <div>
+          <span className="sim-label">Se aplica</span>
+          {parts.map(([k, v]) => <div key={k} className="sim-row"><span>{k}</span><strong>{money(v, cur)}</strong></div>)}
+          <ul className="sim-cuotas">
+            {d.byInstallment.map((r, n) => (
+              <li key={n}>{r.kind === 'cuota' ? `Cuota ${r.number}` : r.kind === 'extra' ? 'Abono extraordinario' : 'Saldo a favor'}: {[
+                r.mora && `mora ${money(r.mora, cur)}`, r.interes && `interés ${money(r.interes, cur)}`, r.capital && `capital ${money(r.capital, cur)}`, r.saldo_a_favor && money(r.saldo_a_favor, cur),
+              ].filter(Boolean).join(', ')}</li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <span className="sim-label">Préstamo después</span>
+          <div className="sim-row"><span>Saldo de capital</span><strong>{money(a.balancePrincipal, cur)}</strong></div>
+          <div className="sim-row muted small"><span>antes</span><span>{money(before.balancePrincipal, cur)}</span></div>
+          <div className="sim-row"><span>Total por pagar</span><strong>{money(a.totalRemaining, cur)}</strong></div>
+          <div className="sim-row"><span>Estado</span><strong>{STATUS_TXT[a.status] ?? a.status}</strong></div>
+          {a.nextDueDate && <div className="sim-row"><span>Próxima cuota</span><strong>{date(a.nextDueDate)}, {money(a.nextDueAmount, cur)}</strong></div>}
+          {d.rescheduled && a.status !== 'pagado' && <div className="sim-row"><span>Plan nuevo</span><strong>{d.schedule.filter((x) => x.status !== 'pagada').length} cuotas, termina {date(a.maturityDate)}</strong></div>}
+        </div>
+      </div>
+      {d.rescheduled && a.status !== 'pagado' && (
+        <details className="sim-plan">
+          <summary>Ver el plan de cuotas nuevo</summary>
+          <table className="table compact">
+            <thead><tr><th>#</th><th>Vence</th><th className="num">Capital</th><th className="num">Interés</th><th className="num">Pendiente</th></tr></thead>
+            <tbody>{d.schedule.map((x) => <tr key={x.number}><td>{x.number}</td><td>{date(x.dueDate)}</td><td className="num">{money(x.principalDue, cur)}</td><td className="num">{money(x.interestDue, cur)}</td><td className="num">{money(x.pending, cur)}</td></tr>)}</tbody>
+          </table>
+        </details>
+      )}
+    </div>
+  );
+}
+
 const EFFECT = { reducir_cuota: 'reduce la cuota', reducir_plazo: 'reduce el plazo' };
 /** Cómo se aplicó el pago, para que se distinga un abono extraordinario de un pago de cuota. */
 function modeLabel(p) {
@@ -54,6 +102,22 @@ export default function LoanDetail() {
   const [form, setForm] = useState({});
   const [errors, setErrors] = useState({});
   const [payoff, setPayoff] = useState(null);
+  const [sim, setSim] = useState({ loading: false, data: null, error: null });
+  const simKey = modal === 'pay' ? JSON.stringify([form.amount, form.applyTo, form.targets, form.concept, form.capitalEffect, form.excessMode, form.paidAt, form.cashAccountId]) : null;
+  useEffect(() => {
+    if (!simKey) return undefined;
+    const cents = Math.round(Number(String(form.amount ?? '').replace(',', '.')) * 100);
+    if (!cents || cents <= 0 || !form.cashAccountId || (form.applyTo === 'cuotas' && !(form.targets ?? []).length)) { setSim({ loading: false, data: null, error: null }); return undefined; }
+    let alive = true;
+    setSim((x) => ({ ...x, loading: true }));
+    const t = setTimeout(() => {
+      appApi('/payments/preview', { method: 'POST', body: simBodyRef.current(form) })
+        .then((d) => alive && setSim({ loading: false, data: d, error: null }))
+        .catch((e) => alive && setSim({ loading: false, data: null, error: e.message }));
+    }, 500);
+    return () => { alive = false; clearTimeout(t); };
+  }, [simKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const simBodyRef = useRef(null);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   const guard = (schema) => { const found = validate(form, schema); setErrors(found); if (Object.keys(found).length) { focusFirstError(); return false; } return true; };
 
@@ -95,6 +159,16 @@ export default function LoanDetail() {
     setForm({ applyTo: 'automatico', amount: '', method: 'efectivo', cashAccountId: cash.data?.[0]?._id ?? '', paidAt: inputDate(new Date()), reference: '', notes: '', excessMode: free ? 'capital' : 'proximas_cuotas', capitalEffect: 'reducir_cuota', targets: [], key: newKey() });
     setModal('pay');
   };
+  const paymentBody = (f) => ({
+    loanId: id, amount: toCents(f.amount), method: f.method, cashAccountId: f.cashAccountId,
+    paidAt: new Date(`${f.paidAt}T${new Date().toTimeString().slice(0, 8)}`).toISOString(),
+    ...(f.reference && { externalReference: f.reference }), ...(f.notes && { notes: f.notes }),
+    applyTo: f.applyTo,
+    ...(f.applyTo === 'automatico' && { excessMode: f.excessMode }),
+    ...(f.applyTo === 'cuotas' && { targetNumbers: f.targets ?? [], ...(CONCEPTS[f.concept ?? 'todo'].comps.length && { components: CONCEPTS[f.concept].comps }) }),
+    ...(f.applyTo === 'capital' && { capitalEffect: f.capitalEffect }),
+  });
+  simBodyRef.current = paymentBody;
   const loadPayoff = (day) => {
     setPayoff(null);
     appApi(`/loans/${id}/payoff?date=${day ?? form.paidAt}`).then((p) => { setPayoff(p); setForm((f) => ({ ...f, amount: pesosText(p.total) })); }).catch((e) => setErrors({ amount: e.message }));
@@ -231,7 +305,7 @@ export default function LoanDetail() {
       {/* ---------- Registrar pago ---------- */}
       <Modal open={modal === 'pay'} title="Registrar pago" onClose={close} width={640}
         footer={<><Button variant="ghost" onClick={close}>Cancelar</Button>
-          <Button loading={busy} disabled={form.applyTo === 'capital' && exigible > 0} onClick={() => {
+          <Button loading={busy} disabled={(form.applyTo === 'capital' && exigible > 0) || Boolean(sim.error)} onClick={() => {
             const extra = {};
             if (form.applyTo === 'cuotas' && !(form.targets ?? []).length) extra.targets = 'Elige al menos una cuota';
             if (form.applyTo === 'liquidacion' && payoff && toCents(form.amount || 0) < payoff.total) extra.amount = `Para el pago total se necesitan ${money(payoff.total, cur)}`;
@@ -243,15 +317,7 @@ export default function LoanDetail() {
             done(() => appApi('/payments', {
               method: 'POST',
               headers: { 'Idempotency-Key': form.key },
-              body: {
-                loanId: id, amount: toCents(form.amount), method: form.method, cashAccountId: form.cashAccountId,
-                paidAt: new Date(`${form.paidAt}T${new Date().toTimeString().slice(0, 8)}`).toISOString(),
-                ...(form.reference && { externalReference: form.reference }), ...(form.notes && { notes: form.notes }),
-                applyTo: form.applyTo,
-                ...(form.applyTo === 'automatico' && { excessMode: form.excessMode }),
-                ...(form.applyTo === 'cuotas' && { targetNumbers: form.targets, ...(CONCEPTS[form.concept ?? 'todo'].comps.length && { components: CONCEPTS[form.concept].comps }) }),
-                ...(form.applyTo === 'capital' && { capitalEffect: form.capitalEffect }),
-              },
+              body: paymentBody(form),
             }), form.applyTo === 'liquidacion' ? 'Préstamo pagado en su totalidad' : 'Pago registrado');
           }}>Registrar pago</Button></>}>
         <p className="modal-lead">Vencido hoy: <strong>{money(exigible, cur)}</strong>{l.nextDueDate && <>. Próxima cuota: {money(l.nextDueAmount, cur)} el {date(l.nextDueDate)}</>}.</p>
@@ -307,11 +373,13 @@ export default function LoanDetail() {
           !payoff ? <Loading /> : (
             <div className="payoff">
               <dl>
-                <div><dt>Capital pendiente</dt><dd>{money(payoff.principal, cur)}</dd></div>
+                <div><dt>Capital pendiente</dt><dd>{money(payoff.principal + (payoff.prepaidInterestCredit ?? 0) - (payoff.refund ?? 0), cur)}</dd></div>
                 {payoff.overdueInterest > 0 && <div><dt>Interés vencido</dt><dd>{money(payoff.overdueInterest, cur)}</dd></div>}
                 {payoff.currentInterest > 0 && <div><dt>Interés del período hasta hoy</dt><dd>{money(payoff.currentInterest, cur)}</dd></div>}
                 {payoff.lateInterest > 0 && <div><dt>Mora</dt><dd>{money(payoff.lateInterest, cur)}</dd></div>}
                 {payoff.fees > 0 && <div><dt>Cargos</dt><dd>{money(payoff.fees, cur)}</dd></div>}
+                {payoff.prepaidInterestCredit > 0 && <div><dt>Intereses pagados por adelantado (se descuentan)</dt><dd className="tone-ok">-{money(payoff.prepaidInterestCredit, cur)}</dd></div>}
+                {payoff.refund > 0 && <div><dt>Saldo a favor del deudor</dt><dd className="tone-ok">{money(payoff.refund, cur)}</dd></div>}
                 <div className="total"><dt>Total para cancelar hoy</dt><dd>{money(payoff.total, cur)}</dd></div>
               </dl>
               <p className="field-hint">Sin penalidad por pago anticipado; el interés se cobra solo por los días corridos (Ley 1555 de 2012). El préstamo queda pagado.</p>
@@ -333,6 +401,7 @@ export default function LoanDetail() {
               options={{ proximas_cuotas: 'Adelantar las cuotas siguientes', capital: 'Abonar a capital y bajar el valor de las cuotas' }} />
           )}
         </div>
+        <PaymentPreview sim={sim} cur={cur} before={l} />
         {form.applyTo === 'automatico' && <p className="field-hint">Se aplica en este orden: mora, cargos, interés y capital, empezando por la cuota más antigua. {free && 'Lo que sobre después del interés va a capital.'}</p>}
       </Modal>
 

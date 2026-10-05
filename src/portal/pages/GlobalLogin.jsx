@@ -71,7 +71,7 @@ export default function GlobalLogin() {
           <div className="portal-form">
             <h2>Ingresa con tu correo</h2>
             <p className="muted">Usa el correo que diste a las empresas donde tienes préstamos.</p>
-            <GoogleButton onCredential={onGoogle} text="continue_with" />
+            <GoogleButton onCredential={onGoogle} text="continue_with" oneTap />
             <div className="divider"><span>o recibe un código</span></div>
             <form onSubmit={requestCode} className="portal-form" noValidate>
               <Input label="Correo" required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tucorreo@gmail.com" />

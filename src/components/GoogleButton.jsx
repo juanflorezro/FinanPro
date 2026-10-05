@@ -16,7 +16,11 @@ function loadScript() {
 }
 
 /** Botón oficial de "Continuar con Google". Entrega el idToken a onCredential. */
-export function GoogleButton({ onCredential, text = 'continue_with' }) {
+/**
+ * oneTap: además del botón, muestra el aviso de Google "Continuar como …" y, si la persona ya
+ * eligió su cuenta antes en este navegador, entra sola (como Zoho o Facebook).
+ */
+export function GoogleButton({ onCredential, text = 'continue_with', oneTap = false }) {
   const ref = useRef(null);
   const [failed, setFailed] = useState(false);
 
@@ -25,14 +29,18 @@ export function GoogleButton({ onCredential, text = 'continue_with' }) {
     let cancelled = false;
     loadScript().then(() => {
       if (cancelled || !ref.current) return;
-      window.google.accounts.id.initialize({ client_id: CLIENT_ID, callback: (r) => onCredential(r.credential) });
+      window.google.accounts.id.initialize({
+        client_id: CLIENT_ID, callback: (r) => onCredential(r.credential),
+        auto_select: oneTap, cancel_on_tap_outside: true, use_fedcm_for_prompt: true, itp_support: true,
+      });
       window.google.accounts.id.renderButton(ref.current, {
         theme: 'outline', size: 'large', text, shape: 'rectangular', logo_alignment: 'left',
         width: Math.min(ref.current.offsetWidth || 380, 400),
       });
+      if (oneTap) window.google.accounts.id.prompt();
     }).catch(() => setFailed(true));
-    return () => { cancelled = true; };
-  }, [onCredential, text]);
+    return () => { cancelled = true; try { window.google?.accounts?.id?.cancel(); } catch { /* nada */ } };
+  }, [onCredential, text, oneTap]);
 
   if (!CLIENT_ID) return <p className="field-hint">Falta VITE_GOOGLE_CLIENT_ID en el .env para mostrar el botón de Google.</p>;
   if (failed) return <p className="field-hint">No se pudo cargar el botón de Google. Revisa tu conexión.</p>;

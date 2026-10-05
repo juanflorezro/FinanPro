@@ -39,7 +39,7 @@ export function refreshAdminSession() {
  * api('/admin/tenants', { query: { page: 1 } })  ·  api('/admin/plans', { method: 'POST', body })
  */
 export async function api(path, { method = 'GET', body, query, retry = true } = {}) {
-  const url = new URL(BASE + path);
+  const url = new URL(BASE + path, window.location.origin);
   Object.entries(query ?? {}).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
   });

@@ -12,7 +12,8 @@ import { MODALITIES, SUB_STATUS } from '../../utils/labels.js';
 const WATERFALL_LABEL = { mora: 'Interés de mora', cargo: 'Cargos', interes: 'Interés', capital: 'Capital' };
 const TABS = [['empresa', 'Empresa'], ['prestamos', 'Préstamos'], ['portal', 'Portal de clientes'], ['ia', 'ChatGPT y Claude'], ['seguridad', 'Mi seguridad']];
 
-const MCP_URL = `${(import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api').replace(/\/$/, '')}/mcp`;
+// El MCP va directo al backend (OAuth); la app usa /api por el proxy de Vercel
+const MCP_URL = import.meta.env.VITE_MCP_URL ?? `${(import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api').replace(/\/$/, '')}/mcp`;
 
 function AiConnections() {
   const notify = useToast();

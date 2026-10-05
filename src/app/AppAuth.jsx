@@ -34,6 +34,7 @@ export function AppAuthProvider({ children }) {
   }, [loadMe]);
 
   const logout = useCallback(async () => {
+    try { window.google?.accounts?.id?.disableAutoSelect(); } catch { /* sin Google */ } // al salir no vuelve a entrar sola
     try { await appApi('/auth/logout', { method: 'POST' }); } catch { /* igual cerramos */ }
     setAppToken(null);
     setMe(null);

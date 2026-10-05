@@ -31,7 +31,7 @@ export function refreshAppSession() {
 
 /** Cliente de la app de empresas: token del usuario + header X-Org-Id de la organización activa. */
 export async function appApi(path, { method = 'GET', body, query, headers, retry = true } = {}) {
-  const url = new URL(BASE + path);
+  const url = new URL(BASE + path, window.location.origin);
   Object.entries(query ?? {}).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
   });
@@ -66,7 +66,7 @@ export async function appApi(path, { method = 'GET', body, query, headers, retry
 
 /** Descarga un archivo de la API (ej. Excel) con la sesión y la organización actuales. */
 export async function appDownload(path, query, fallbackName = 'archivo.xlsx') {
-  const url = new URL(BASE + path);
+  const url = new URL(BASE + path, window.location.origin);
   Object.entries(query ?? {}).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v); });
   const doFetch = () => fetch(url, {
     credentials: 'include',

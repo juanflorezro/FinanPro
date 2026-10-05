@@ -90,7 +90,7 @@ export default function PortalLogin() {
             <h2>Ingresa a tu cuenta</h2>
             <p className="muted">Entra con el correo que registraste en {company.name}.</p>
 
-            <GoogleButton onCredential={onGoogle} text="continue_with" />
+            <GoogleButton onCredential={onGoogle} text="continue_with" oneTap />
 
             <div className="divider"><span>o con tu documento</span></div>
 
