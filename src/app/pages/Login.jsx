@@ -7,6 +7,16 @@ import { CodeInput } from '../../components/CodeInput.jsx';
 import { GoogleButton } from '../../components/GoogleButton.jsx';
 import { Guilloche } from '../../components/Guilloche.jsx';
 
+/** A dónde volver después de iniciar sesión (lo guarda, por ejemplo, la autorización OAuth). */
+export const AFTER_LOGIN_KEY = 'finanpro.afterLogin';
+function takeAfterLogin() {
+  try {
+    const to = sessionStorage.getItem(AFTER_LOGIN_KEY);
+    sessionStorage.removeItem(AFTER_LOGIN_KEY);
+    return to && to.startsWith('/') ? to : '/';
+  } catch { return '/'; }
+}
+
 export function AuthShell({ title, lede, children }) {
   return (
     <div className="login">
@@ -41,7 +51,7 @@ export default function Login() {
 
   const finish = useCallback(async (session) => {
     await acceptSession(session);
-    navigate('/', { replace: true });
+    navigate(takeAfterLogin(), { replace: true });
   }, [acceptSession, navigate]);
 
   const handle = useCallback(async (fn) => {
@@ -56,7 +66,7 @@ export default function Login() {
     await finish(res);
   }), [handle, finish]);
 
-  if (ready && me) return <Navigate to="/" replace />;
+  if (ready && me) return <Navigate to={takeAfterLogin()} replace />;
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   const email = form.email.trim().toLowerCase();

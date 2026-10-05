@@ -39,6 +39,7 @@ import CashAccounts from './app/pages/CashAccounts.jsx';
 import Team from './app/pages/Team.jsx';
 import Settings from './app/pages/Settings.jsx';
 import Support from './app/pages/Support.jsx';
+import OAuthConsent from './app/pages/OAuthConsent.jsx';
 import NotFound from './app/pages/NotFound.jsx';
 
 // Portal del deudor
@@ -90,6 +91,7 @@ createRoot(document.getElementById('root')).render(
 
           <Route element={<AppScope />}>
             <Route path="/login" element={<Login />} />
+            <Route path="/oauth/autorizar" element={<OAuthConsent />} />
             <Route path="/recuperar" element={<Recover />} />
             <Route path="/crear-organizacion" element={<CreateOrg />} />
             <Route path="/" element={<AppLayout />}>

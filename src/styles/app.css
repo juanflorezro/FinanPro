@@ -273,3 +273,18 @@
 .portal-link code { flex: 1; min-width: 200px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; word-break: break-all; }
 .access-code { display: grid; gap: 2px; margin-bottom: 12px; padding: 12px 14px; border-radius: var(--r-sm); background: #fbf8f1; border-left: 3px solid var(--brass); }
 .access-code strong { font-size: 30px; letter-spacing: 8px; font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--pine-900); }
+
+/* ===== Autorización OAuth (conectar ChatGPT) ===== */
+.consent { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; background: var(--pine-900); }
+.consent-card { width: 100%; max-width: 460px; display: grid; gap: 16px; padding: clamp(22px, 5vw, 32px); background: var(--surface); border-radius: 20px; box-shadow: 0 30px 60px -30px rgba(0, 0, 0, .5); }
+.consent-logos { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.consent-logos .logo-mark, .consent-app { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-weight: 700; font-size: 20px; }
+.consent-app { background: #10a37f; color: #fff; }
+.consent-link { width: 40px; border-top: 2px dashed var(--line); }
+.consent-card h1 { font-size: 21px; font-stretch: 88%; text-align: center; line-height: 1.25; font-weight: 500; }
+.consent-card > .muted { text-align: center; margin-top: -10px; }
+.consent-who { display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--r-sm); background: var(--line-2); }
+.consent-scopes { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-sm); display: grid; gap: 6px; }
+.consent-scopes ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+.consent-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+.consent-actions .btn { min-height: 46px; }

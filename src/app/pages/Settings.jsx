@@ -10,7 +10,48 @@ import { date, percent } from '../../utils/format.js';
 import { MODALITIES, SUB_STATUS } from '../../utils/labels.js';
 
 const WATERFALL_LABEL = { mora: 'Interés de mora', cargo: 'Cargos', interes: 'Interés', capital: 'Capital' };
-const TABS = [['empresa', 'Empresa'], ['prestamos', 'Préstamos'], ['portal', 'Portal de clientes'], ['seguridad', 'Mi seguridad']];
+const TABS = [['empresa', 'Empresa'], ['prestamos', 'Préstamos'], ['portal', 'Portal de clientes'], ['ia', 'ChatGPT y Claude'], ['seguridad', 'Mi seguridad']];
+
+const MCP_URL = `${(import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api').replace(/\/$/, '')}/mcp`;
+
+function AiConnections() {
+  const notify = useToast();
+  const { data, error, loading, reload } = useAppApi('/oauth/connections');
+  const [busy, setBusy] = useState('');
+  return (
+    <div className="grid-main">
+      <Panel title="Conectar FinanPro a ChatGPT o Claude">
+        <p className="panel-intro">Pregúntale a tu asistente por tu cartera, busca préstamos o registra deudores conversando. Usa siempre los permisos de tu rol.</p>
+        <div className="portal-link">
+          <code>{MCP_URL}</code>
+          <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard?.writeText(MCP_URL); notify('URL copiada'); }}>Copiar</Button>
+        </div>
+        <ol className="hint-list section-gap">
+          <li><strong>ChatGPT:</strong> Configuración → Aplicaciones (o Complementos) → activa el modo desarrollador → <em>Nuevo complemento</em>. Pega la URL y elige <strong>OAuth</strong>.</li>
+          <li><strong>Claude:</strong> Configuración → Conectores → <em>Agregar conector personalizado</em> y pega la URL.</li>
+          <li>Se abrirá FinanPro para que elijas la empresa y permitas el acceso.</li>
+        </ol>
+      </Panel>
+      <Panel title="Aplicaciones conectadas" flush>
+        {loading ? <Loading /> : error ? <ErrorNote error={error} onRetry={reload} /> : !data?.length ? (
+          <p className="panel-intro" style={{ padding: '16px 22px' }}>Todavía no has conectado ninguna aplicación.</p>
+        ) : (
+          <ul className="list">
+            {data.map((c) => (
+              <li key={`${c.clientId}:${c.orgId}`}>
+                <div><strong>{c.clientName ?? 'Aplicación'}</strong><span className="muted small"> {c.orgName}, conectada {new Date(c.createdAt).toLocaleDateString('es-CO')}</span></div>
+                <Button variant="danger-ghost" size="sm" loading={busy === c.clientId + c.orgId} onClick={async () => {
+                  setBusy(c.clientId + c.orgId);
+                  try { await appApi('/oauth/connections/revoke', { method: 'POST', body: { clientId: c.clientId, orgId: c.orgId } }); notify('Aplicación desconectada'); reload(); } catch (e) { notify(e.message, 'bad'); } finally { setBusy(''); }
+                }}>Desconectar</Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+    </div>
+  );
+}
 
 function PortalSettings({ data, editable, save, busy }) {
   const notify = useToast();
@@ -221,6 +262,7 @@ export default function Settings() {
       )}
 
       {tab === 'portal' && <PortalSettings data={data} editable={editable} save={save} busy={busy} />}
+      {tab === 'ia' && <AiConnections />}
       {tab === 'seguridad' && <Security />}
     </>
   );
