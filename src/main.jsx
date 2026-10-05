@@ -39,6 +39,7 @@ import CashAccounts from './app/pages/CashAccounts.jsx';
 import Team from './app/pages/Team.jsx';
 import Settings from './app/pages/Settings.jsx';
 import Support from './app/pages/Support.jsx';
+import CashDetail from './app/pages/CashDetail.jsx';
 import OAuthConsent from './app/pages/OAuthConsent.jsx';
 import NotFound from './app/pages/NotFound.jsx';
 
@@ -103,6 +104,7 @@ createRoot(document.getElementById('root')).render(
               <Route path="prestamos/:id" element={<LoanDetail />} />
               <Route path="pagos" element={<Payments />} />
               <Route path="cajas" element={<CashAccounts />} />
+              <Route path="cajas/:id" element={<CashDetail />} />
               <Route path="equipo" element={<Team />} />
               <Route path="configuracion" element={<Settings />} />
               <Route path="soporte" element={<Support />} />

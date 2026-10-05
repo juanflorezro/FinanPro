@@ -12,6 +12,13 @@ import { LOAN_STATUS, INSTALLMENT_STATUS, AMORTIZATION, FREQUENCY, PAYMENT_METHO
 
 const OPEN = ['desembolsado', 'al_dia', 'en_mora'];
 const pendingOf = (i) => Math.max(0, i.principalDue + i.interestDue + i.feesDue + i.lateInterestAccrued - i.principalPaid - i.interestPaid - i.feesPaid - i.lateInterestPaid - i.waived);
+const PAY_MODES = [
+  { id: 'automatico', label: 'Automático', help: 'Lo vencido primero: mora, interés y capital' },
+  { id: 'cuotas', label: 'Pagar cuotas', help: 'Elige qué cuotas paga' },
+  { id: 'intereses', label: 'Solo intereses', help: 'Mora e interés; el capital no baja' },
+  { id: 'capital', label: 'Abono a capital', help: 'Baja la cuota o el plazo' },
+  { id: 'liquidacion', label: 'Pago total', help: 'Cancela el préstamo hoy' },
+];
 const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
 export default function LoanDetail() {
@@ -23,6 +30,7 @@ export default function LoanDetail() {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [errors, setErrors] = useState({});
+  const [payoff, setPayoff] = useState(null);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   const guard = (schema) => { const found = validate(form, schema); setErrors(found); if (Object.keys(found).length) { focusFirstError(); return false; } return true; };
 
@@ -37,9 +45,35 @@ export default function LoanDetail() {
   const close = () => { setModal(null); setErrors({}); };
   const done = async (fn, msg) => { const r = await run(fn, msg); if (r.ok) { close(); reload(); } return r; };
 
+  const openInstallments = installments.filter((i) => !['pagada', 'anulada', 'condonada'].includes(i.status)).sort((a, b) => a.number - b.number);
+  const now = new Date();
+  const dueNow = openInstallments.filter((i) => new Date(i.dueDate) <= now);
+  const nextOpen = openInstallments.find((i) => new Date(i.dueDate) > now);
+  const interestPayable = dueNow.reduce((a, i) => a + (i.lateInterestAccrued - i.lateInterestPaid) + (i.interestDue - i.interestPaid), 0)
+    + (nextOpen ? (nextOpen.lateInterestAccrued - nextOpen.lateInterestPaid) + (nextOpen.interestDue - nextOpen.interestPaid) : 0);
+  const pesosText = (c) => String(Math.round(c) / 100);
+
   const openPayment = () => {
-    setForm({ amount: '', method: 'efectivo', cashAccountId: cash.data?.[0]?._id ?? '', paidAt: inputDate(new Date()), reference: '', excessMode: free ? 'capital' : 'proximas_cuotas', key: newKey() });
+    setPayoff(null);
+    setForm({ applyTo: 'automatico', amount: '', method: 'efectivo', cashAccountId: cash.data?.[0]?._id ?? '', paidAt: inputDate(new Date()), reference: '', notes: '', excessMode: free ? 'capital' : 'proximas_cuotas', capitalEffect: 'reducir_cuota', targets: [], key: newKey() });
     setModal('pay');
+  };
+  const loadPayoff = (day) => {
+    setPayoff(null);
+    appApi(`/loans/${id}/payoff?date=${day ?? form.paidAt}`).then((p) => { setPayoff(p); setForm((f) => ({ ...f, amount: pesosText(p.total) })); }).catch((e) => setErrors({ amount: e.message }));
+  };
+  const chooseMode = (mode) => {
+    setErrors({});
+    const next = { ...form, applyTo: mode };
+    if (mode === 'intereses') next.amount = pesosText(interestPayable);
+    if (mode === 'cuotas') { next.targets = dueNow.length ? dueNow.map((i) => i.number) : nextOpen ? [nextOpen.number] : []; next.amount = pesosText(openInstallments.filter((i) => next.targets.includes(i.number)).reduce((a, i) => a + pendingOf(i), 0)); }
+    if (mode === 'automatico' || mode === 'capital') next.amount = '';
+    setForm(next);
+    if (mode === 'liquidacion') loadPayoff(form.paidAt);
+  };
+  const toggleTarget = (n) => {
+    const targets = (form.targets ?? []).includes(n) ? form.targets.filter((x) => x !== n) : [...(form.targets ?? []), n].sort((a, b) => a - b);
+    setForm({ ...form, targets, amount: pesosText(openInstallments.filter((i) => targets.includes(i.number)).reduce((a, i) => a + pendingOf(i), 0)) });
   };
 
   return (
@@ -142,46 +176,112 @@ export default function LoanDetail() {
       </div>
 
       {/* ---------- Registrar pago ---------- */}
-      <Modal open={modal === 'pay'} title="Registrar pago" onClose={close} width={560}
+      <Modal open={modal === 'pay'} title="Registrar pago" onClose={close} width={640}
         footer={<><Button variant="ghost" onClick={close}>Cancelar</Button>
-          <Button loading={busy} onClick={() => guard({
-            amount: [rules.required('Escribe el valor recibido'), rules.money()],
-            cashAccountId: [rules.required('Elige la caja donde entra el dinero')],
-            paidAt: [rules.required('Elige la fecha del pago')],
-          }) && done(() => appApi('/payments', {
-            method: 'POST',
-            headers: { 'Idempotency-Key': form.key },
-            body: {
-              loanId: id, amount: toCents(form.amount), method: form.method, cashAccountId: form.cashAccountId,
-              paidAt: new Date(`${form.paidAt}T${new Date().toTimeString().slice(0, 8)}`).toISOString(),
-              ...(form.reference && { externalReference: form.reference }), excessMode: form.excessMode,
-            },
-          }), 'Pago registrado')}>Registrar pago</Button></>}>
+          <Button loading={busy} disabled={form.applyTo === 'capital' && exigible > 0} onClick={() => {
+            const extra = {};
+            if (form.applyTo === 'cuotas' && !(form.targets ?? []).length) extra.targets = 'Elige al menos una cuota';
+            if (form.applyTo === 'liquidacion' && payoff && toCents(form.amount || 0) < payoff.total) extra.amount = `Para el pago total se necesitan ${money(payoff.total, cur)}`;
+            if (!guard({
+              amount: [rules.required('Escribe el valor recibido'), rules.money()],
+              cashAccountId: [rules.required('Elige la caja donde entra el dinero')],
+              paidAt: [rules.required('Elige la fecha del pago')],
+            }) || Object.keys(extra).length) { setErrors((e) => ({ ...e, ...extra })); return; }
+            done(() => appApi('/payments', {
+              method: 'POST',
+              headers: { 'Idempotency-Key': form.key },
+              body: {
+                loanId: id, amount: toCents(form.amount), method: form.method, cashAccountId: form.cashAccountId,
+                paidAt: new Date(`${form.paidAt}T${new Date().toTimeString().slice(0, 8)}`).toISOString(),
+                ...(form.reference && { externalReference: form.reference }), ...(form.notes && { notes: form.notes }),
+                applyTo: form.applyTo,
+                ...(form.applyTo === 'automatico' && { excessMode: form.excessMode }),
+                ...(form.applyTo === 'cuotas' && { targetNumbers: form.targets }),
+                ...(form.applyTo === 'capital' && { capitalEffect: form.capitalEffect }),
+              },
+            }), form.applyTo === 'liquidacion' ? 'Préstamo pagado en su totalidad' : 'Pago registrado');
+          }}>Registrar pago</Button></>}>
         <p className="modal-lead">Vencido hoy: <strong>{money(exigible, cur)}</strong>{l.nextDueDate && <>. Próxima cuota: {money(l.nextDueAmount, cur)} el {date(l.nextDueDate)}</>}.</p>
-        <div className="form-grid">
-          <Input label="Valor recibido" required inputMode="numeric" value={form.amount ?? ''} onChange={set('amount')} error={errors.amount} hint={form.amount ? money(toCents(form.amount), cur) : 'Sin puntos ni comas'} autoFocus />
-          <Input label="Fecha" required type="date" value={form.paidAt ?? ''} onChange={set('paidAt')} max={inputDate(new Date())} error={errors.paidAt} />
+
+        <div className="pay-modes" role="radiogroup" aria-label="Cómo aplicar el pago">
+          {PAY_MODES.filter((m) => !(free && m.id === 'cuotas')).map((m) => (
+            <button key={m.id} type="button" role="radio" aria-checked={form.applyTo === m.id} className={`pay-mode ${form.applyTo === m.id ? 'on' : ''}`} onClick={() => chooseMode(m.id)}>
+              <strong>{m.label}</strong><span>{m.help}</span>
+            </button>
+          ))}
+        </div>
+
+        {form.applyTo === 'cuotas' && (
+          <div className="pay-installments">
+            {openInstallments.map((i) => (
+              <label key={i._id} className={`check ${(form.targets ?? []).includes(i.number) ? 'on' : ''}`}>
+                <input type="checkbox" checked={(form.targets ?? []).includes(i.number)} onChange={() => toggleTarget(i.number)} />
+                <span>Cuota {i.number} <span className="muted small">vence {date(i.dueDate)}</span></span>
+                <strong>{money(pendingOf(i), cur)}</strong>
+              </label>
+            ))}
+            {errors.targets && <p className="field-error">{errors.targets}</p>}
+          </div>
+        )}
+        {form.applyTo === 'intereses' && <p className="notice">Intereses y mora que se pueden pagar hoy: <strong>{money(interestPayable, cur)}</strong>. El capital no baja con este abono.</p>}
+        {form.applyTo === 'capital' && (exigible > 0
+          ? <p className="notice notice-bad">Para abonar a capital el préstamo debe estar al día. Primero registra el pago de lo vencido ({money(exigible, cur)}).</p>
+          : (
+            <div className="form-grid">
+              {!free && (
+                <div className="span-2 radio-row" role="radiogroup" aria-label="Efecto del abono">
+                  <label className="check"><input type="radio" name="effect" checked={form.capitalEffect === 'reducir_cuota'} onChange={() => setForm({ ...form, capitalEffect: 'reducir_cuota' })} /> Reducir el valor de las cuotas</label>
+                  <label className="check"><input type="radio" name="effect" checked={form.capitalEffect === 'reducir_plazo'} onChange={() => setForm({ ...form, capitalEffect: 'reducir_plazo' })} /> Reducir el número de cuotas</label>
+                </div>
+              )}
+              <p className="field-hint span-2">Saldo de capital: {money(l.balancePrincipal, cur)}. Por ley (Ley 1555 de 2012) el deudor puede abonar a capital sin penalidad y elegir si reduce la cuota o el plazo.</p>
+            </div>
+          ))}
+        {form.applyTo === 'liquidacion' && (
+          !payoff ? <Loading /> : (
+            <div className="payoff">
+              <dl>
+                <div><dt>Capital pendiente</dt><dd>{money(payoff.principal, cur)}</dd></div>
+                {payoff.overdueInterest > 0 && <div><dt>Interés vencido</dt><dd>{money(payoff.overdueInterest, cur)}</dd></div>}
+                {payoff.currentInterest > 0 && <div><dt>Interés del período hasta hoy</dt><dd>{money(payoff.currentInterest, cur)}</dd></div>}
+                {payoff.lateInterest > 0 && <div><dt>Mora</dt><dd>{money(payoff.lateInterest, cur)}</dd></div>}
+                {payoff.fees > 0 && <div><dt>Cargos</dt><dd>{money(payoff.fees, cur)}</dd></div>}
+                <div className="total"><dt>Total para cancelar hoy</dt><dd>{money(payoff.total, cur)}</dd></div>
+              </dl>
+              <p className="field-hint">Sin penalidad por pago anticipado; el interés se cobra solo por los días corridos (Ley 1555 de 2012). El préstamo queda pagado.</p>
+            </div>
+          )
+        )}
+
+        <div className="form-grid section-gap">
+          <Input label="Valor recibido" required inputMode="numeric" value={form.amount ?? ''} onChange={set('amount')} error={errors.amount} hint={form.amount ? money(toCents(form.amount), cur) : 'Sin puntos ni comas'} />
+          <Input label="Fecha" required type="date" value={form.paidAt ?? ''} onChange={(e) => { setForm({ ...form, paidAt: e.target.value }); if (form.applyTo === 'liquidacion') loadPayoff(e.target.value); }} max={inputDate(new Date())} error={errors.paidAt} />
           <Select label="Medio" required value={form.method ?? 'efectivo'} onChange={set('method')} options={PAYMENT_METHODS_APP} />
           {cash.data?.length ? (
             <Select label="Caja" required value={form.cashAccountId ?? ''} onChange={set('cashAccountId')} options={Object.fromEntries(cash.data.map((c) => [c._id, c.name]))} error={errors.cashAccountId} />
           ) : <p className="field-error">No tienes cajas. <Link to="/cajas">Crea una</Link> para registrar pagos.</p>}
-          <Input label="Referencia" value={form.reference ?? ''} onChange={set('reference')} hint="N° de transferencia, opcional" className="span-2" />
-          {!free && (
+          <Input label="Referencia" value={form.reference ?? ''} onChange={set('reference')} hint="N° de transferencia, opcional" />
+          <Input label="Nota" value={form.notes ?? ''} onChange={set('notes')} hint="Opcional, sale en el recibo" />
+          {form.applyTo === 'automatico' && !free && (
             <Select label="Si paga más de lo vencido" value={form.excessMode ?? 'proximas_cuotas'} onChange={set('excessMode')} className="span-2"
               options={{ proximas_cuotas: 'Adelantar las cuotas siguientes', capital: 'Abonar a capital y bajar el valor de las cuotas' }} />
           )}
         </div>
-        <p className="field-hint">Se aplica en este orden: mora, cargos, interés y capital. {free && 'Lo que sobre después del interés va a capital.'}</p>
+        {form.applyTo === 'automatico' && <p className="field-hint">Se aplica en este orden: mora, cargos, interés y capital, empezando por la cuota más antigua. {free && 'Lo que sobre después del interés va a capital.'}</p>}
       </Modal>
 
       {/* ---------- Desembolsar ---------- */}
       <Modal open={modal === 'disburse'} title="Desembolsar préstamo" onClose={close}
         footer={<><Button variant="ghost" onClick={close}>Cancelar</Button>
-          <Button loading={busy} onClick={() => done(() => appApi(`/loans/${id}/disburse`, { method: 'POST', body: { disbursementDate: form.disbursementDate, ...(form.firstDueDate && { firstDueDate: form.firstDueDate }) } }), 'Préstamo desembolsado')}>Desembolsar {money(l.principal, cur)}</Button></>}>
+          <Button loading={busy} onClick={() => done(() => appApi(`/loans/${id}/disburse`, { method: 'POST', body: { disbursementDate: form.disbursementDate, ...(form.firstDueDate && { firstDueDate: form.firstDueDate }), ...(form.cashAccountId && { cashAccountId: form.cashAccountId }) } }), 'Préstamo desembolsado')}>Desembolsar {money(l.principal, cur)}</Button></>}>
         <p className="modal-lead">Al desembolsar se generan las cuotas y el préstamo empieza a correr.</p>
         <div className="form-grid">
           <Input label="Fecha del desembolso" type="date" value={form.disbursementDate ?? ''} onChange={set('disbursementDate')} />
           <Input label="Primera cuota" type="date" value={form.firstDueDate ?? ''} onChange={set('firstDueDate')} hint="Vacío: un período después" />
+          {cash.data?.length > 0 && (
+            <Select label="Caja de donde sale el dinero" value={form.cashAccountId ?? ''} onChange={set('cashAccountId')} className="span-2" placeholder="No registrar salida de caja"
+              options={Object.fromEntries(cash.data.map((c) => [c._id, c.name]))} hint="Queda como egreso en el libro de la caja" />
+          )}
         </div>
       </Modal>
 
